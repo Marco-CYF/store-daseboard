@@ -199,7 +199,7 @@ body.big table.board th.rowhd{font-size:16px}
         <b id="stampTime">尚未連線</b>
         <span id="stampWho">請先到「設定」完成雲端連線</span>
       </div>
-      <span class="pill ro" id="modePill" hidden>唯讀</span>
+      <span class="pill ro" id="modePill" hidden>唯讀模式</span>
       <span class="pill dirty" id="dirtyPill" hidden>有未保存的變更</span>
       <button class="btn" id="btnPull">更新</button>
       <button class="btn primary" id="btnPush">保存</button>
@@ -236,6 +236,7 @@ const DEFAULT_CFG = {
 const LS = {
   cfg:'fd_cfg_v1',      // 連線設定（gistId / token / 名字），只存在本機
   cache:'fd_cache_v1',  // 離線快取 + 本機模式資料
+  prev:'fd_prev_v1',    // 被雲端覆蓋前的上一份，供緊急還原
 };
 const FILENAME = 'scoreboard.json';
 const uid = (p='id') => p + '_' + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-3);
@@ -310,6 +311,26 @@ function normalize(d){
    Store：雲端儲存層
    目前實作 GitHub Gist。要換別的後端，只要改這三個方法即可。
    ============================================================ */
+/* ---- API 額度追蹤 ---- */
+const Rate = { limit:null, remaining:null, reset:null, blockedUntil:0 };
+function noteRate(r){
+  const g = k => r.headers.get(k);
+  if(g('x-ratelimit-limit') != null){
+    Rate.limit = Number(g('x-ratelimit-limit'));
+    Rate.remaining = Number(g('x-ratelimit-remaining'));
+    Rate.reset = Number(g('x-ratelimit-reset')) * 1000;
+  }
+}
+class RateError extends Error {
+  constructor(r){
+    const reset = Number(r.headers.get('x-ratelimit-reset')) * 1000 || (Date.now()+600000);
+    Rate.blockedUntil = reset;
+    const mins = Math.max(1, Math.ceil((reset - Date.now())/60000));
+    super(`已達 GitHub API 次數上限，約 ${mins} 分鐘後恢復` + (Store.cfg().token ? '' : '。請在「連線與備份」填入權杖可大幅提高上限'));
+    this.name = 'RateError';
+  }
+}
+
 const Store = {
   /** 優先序：內建預設 → 這台裝置的設定 → 網址參數 ?gist=xxx */
   cfg(){
@@ -322,7 +343,7 @@ const Store = {
   },
   saveCfg(c){ localStorage.setItem(LS.cfg, JSON.stringify(c)); },
   get mode(){ const c=this.cfg(); return (!c.noCloud && c.gistId) ? 'gist' : 'local'; },
-  get canWrite(){ return this.mode==='local' || !!this.cfg().token; },
+  get canWrite(){ const c=this.cfg(); return this.mode==='local' ? !c.viewOnly : (!!c.token && !c.viewOnly); },
 
   async read(etag){
     const c = this.cfg();
@@ -334,8 +355,11 @@ const Store = {
     if(c.token) h.Authorization = 'Bearer ' + c.token;
     if(etag) h['If-None-Match'] = etag;
     const r = await fetch('https://api.github.com/gists/' + c.gistId, { headers:h, cache:'no-store' });
+    noteRate(r);
     if(r.status === 304) return { notModified:true };
-    if(r.status === 401 || r.status === 403) throw new Error('權杖無效或已達 API 次數上限（' + r.status + '）');
+    if(r.status === 429 || (r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0')) throw new RateError(r);
+    if(r.status === 401) throw new Error('權杖無效或已過期，請到「連線與備份」重新填寫');
+    if(r.status === 403) throw new Error('沒有存取權限（403），請確認權杖有勾選 gist 權限');
     if(r.status === 404) throw new Error('找不到這個 Gist，請確認 Gist ID');
     if(!r.ok) throw new Error('讀取失敗（HTTP ' + r.status + '）');
     const j = await r.json();
@@ -355,11 +379,28 @@ const Store = {
       headers:{ 'Accept':'application/vnd.github+json', 'Authorization':'Bearer '+c.token, 'Content-Type':'application/json' },
       body: JSON.stringify({ files: { [FILENAME]: { content: JSON.stringify(data, null, 2) } } })
     });
+    noteRate(r);
+    if(r.status === 429 || (r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0')) throw new RateError(r);
     if(!r.ok) throw new Error('保存失敗（HTTP ' + r.status + '）');
     const j = await r.json();
     return { etag: r.headers.get('ETag'), data: JSON.parse((j.files[FILENAME]||Object.values(j.files)[0]).content) };
   },
 };
+
+/** 分享連結帶來的設定：?gist=ID&t=權杖&ro=1(唯讀)
+ *  收下後立刻寫進本機並清掉網址列，避免權杖留在畫面、書籤或截圖裡 */
+function adoptUrlParams(){
+  const q = new URLSearchParams(location.search);
+  if(!q.has('gist') && !q.has('t')) return;
+  let cur = {}; try{ cur = JSON.parse(localStorage.getItem(LS.cfg)) || {}; }catch{}
+  if(q.get('gist')){ cur.gistId = q.get('gist').trim(); cur.noCloud = false; }
+  if(q.get('t')) cur.token = q.get('t').trim();
+  cur.viewOnly = q.get('ro') === '1';
+  if(cur.autoLoad === undefined) cur.autoLoad = true;
+  if(cur.poll === undefined) cur.poll = 10;
+  Store.saveCfg(cur);
+  try{ history.replaceState(null, '', location.pathname); }catch{}
+}
 
 /* ---------- 全域狀態 ---------- */
 const S = {
@@ -499,14 +540,21 @@ function toast(msg, kind=''){
   setTimeout(()=>{ d.style.opacity='0'; d.style.transition='opacity .4s'; setTimeout(()=>d.remove(),400); }, 2600);
 }
 
+/** 雲端那份是不是還沒被初始化過（空物件、缺欄位） */
+function isBlank(o){
+  return !o || typeof o !== 'object' || typeof o.rev !== 'number'
+      || !Array.isArray(o.competitions) || !Array.isArray(o.teams);
+}
 async function pull(manual=true){
   try{
     S.lastErr='';
     const r = await Store.read(S.etag);
     if(r.notModified){ if(manual) toast('已是最新資料'); paintSync(); return; }
-    if(!r.data){
-      if(manual && confirm('雲端還沒有資料，要用目前畫面上的內容建立初始版本嗎？')) return push(false);
-      return;
+    if(isBlank(r.data)){
+      // 保護：絕不讓空的雲端資料蓋掉你手上的內容
+      if(manual && confirm('雲端還沒有資料。\n\n要把目前畫面上的內容上傳，建立第一個版本嗎？')) { S.baseRev = 0; return push(false, true); }
+      if(manual) toast('雲端尚無資料，畫面顯示的仍是本機內容','bad');
+      paintSync(); return;
     }
     const remote = normalize(r.data);
     S.etag = r.etag;
@@ -517,6 +565,8 @@ async function pull(manual=true){
   }catch(e){ S.lastErr = e.message; paintSync(); if(manual) toast(e.message,'bad'); }
 }
 function applyRemote(remote){
+  const prev = localStorage.getItem(LS.cache);
+  if(prev) localStorage.setItem(LS.prev, prev);   // 保留上一份，可在「連線與備份」還原
   S.data = remote; S.baseRev = remote.rev; S.dirty = false; S.remote = null;
   localStorage.setItem(LS.cache, JSON.stringify(remote));
   renderBanner(); render(); paintSync();
@@ -574,12 +624,15 @@ function renderBanner(){
 function startPolling(){
   clearInterval(S.polling);
   const c = Store.cfg();
-  const sec = Math.max(5, Number(c.poll) || (c.token ? 10 : 45));
+  // 沒有權杖 = 未認證，上限只有每小時 60 次而且是「整個對外 IP 共用」，必須放慢
+  const floor = c.token ? 5 : 120;
+  const sec = Math.max(floor, Number(c.poll) || (c.token ? 10 : 120));
   S.polling = setInterval(async ()=>{
     if(document.hidden || S.saving) return;
+    if(Date.now() < Rate.blockedUntil) return;   // 觸頂後暫停，等額度重置
     try{
       const r = await Store.read(S.etag);
-      if(r.notModified || !r.data) return;
+      if(r.notModified || isBlank(r.data)) return;   // 空的雲端資料一律忽略
       const remote = normalize(r.data);
       S.etag = r.etag;
       if(remote.rev === S.data?.rev && !S.dirty) return;
@@ -1130,14 +1183,29 @@ function viewCloud(){
         <div class="field"><label>自動檢查間隔（秒）</label><input class="inp" type="number" id="c_poll" value="${c.poll||10}" min="5">
           <div class="note">別人保存後，這個時間內就會同步過來</div></div>
       </div>
+      <div id="rateBox"></div>
       <label class="chk" style="display:flex;margin-bottom:8px"><input type="checkbox" id="c_load" ${c.autoLoad?'checked':''}> 自動載入最新資料（沒有未保存變更時直接更新，不用按任何按鈕）</label>
       <label class="chk" style="display:flex;margin-bottom:14px"><input type="checkbox" id="c_auto" ${c.autoSave?'checked':''}> 自動保存（改動後 1.5 秒自動上傳，現場登記名次建議開啟）</label>
       <div class="tools" style="margin-left:0">
         <button class="btn primary" id="c_save">儲存設定並連線</button>
-        <button class="btn" id="c_link">複製分享連結</button>
+        <button class="btn" id="c_link">複製觀眾連結</button>
+        <button class="btn" id="c_link2">複製計分人員連結</button>
         <button class="btn" id="c_init">用目前資料建立雲端初始版本</button>
       </div>
     </div></div>`);
+  // 額度狀態
+  const rb = p.querySelector('#rateBox');
+  if(Store.mode==='gist'){
+    const tok = !!c.token;
+    const used = Rate.limit!=null ? `目前剩餘 ${Rate.remaining} / ${Rate.limit} 次` : '尚未取得額度資訊';
+    const resetIn = Rate.reset ? `，約 ${Math.max(0,Math.ceil((Rate.reset-Date.now())/60000))} 分鐘後重置` : '';
+    rb.className = 'rules';
+    rb.style.cssText = 'margin:0 0 14px;border:1px solid ' + (tok?'#bfe5de':'#f2c3bb') + ';border-radius:8px;background:' + (tok?'#e0f4f0':'#fde8e4');
+    rb.innerHTML = tok
+      ? `<b>已認證</b>：每小時 5,000 次（依 GitHub 帳號計，不是依權杖）。畫面沒變動時的檢查不扣額度，實務上用不完。${used}${resetIn}`
+      : `<b>未認證（唯讀）</b>：每小時只有 60 次，而且是<b>整個對外 IP 共用</b> —— 同一個辦公室的所有人加起來算。本模式已自動把檢查間隔放慢到 120 秒。若現場人多，請改用權杖。${used}${resetIn}`;
+  }
+
   p.querySelector('#c_save').onclick = ()=>{
     const gid = p.querySelector('#c_gist').value.trim();
     Store.saveCfg({
@@ -1148,16 +1216,24 @@ function viewCloud(){
       poll: Number(p.querySelector('#c_poll').value)||10,
       autoSave: p.querySelector('#c_auto').checked,
       autoLoad: p.querySelector('#c_load').checked,
+      viewOnly: false,   // 手動填設定 = 自己要用的裝置，解除唯讀
     });
     S.etag=null; S.baseRev=0; startPolling(); pull(true); render();
   };
-  p.querySelector('#c_link').onclick = async ()=>{
+  const makeLink = async (readOnly)=>{
     const cur = Store.cfg();
     if(!cur.gistId){ toast('還沒有 Gist ID','bad'); return; }
-    const url = location.origin + location.pathname + '?gist=' + cur.gistId;
-    try{ await navigator.clipboard.writeText(url); toast('連結已複製，貼給同仁即可','good'); }
-    catch{ prompt('複製這個連結分享給同仁：', url); }
+    let url = location.origin + location.pathname + '?gist=' + encodeURIComponent(cur.gistId);
+    if(cur.token) url += '&t=' + encodeURIComponent(cur.token);
+    if(readOnly) url += '&ro=1';
+    const msg = cur.token
+      ? (readOnly ? '觀眾連結已複製。對方點開就能看，且不會誤改資料。' : '計分人員連結已複製，對方點開即可登錄成績。')
+      : '連結已複製（未含權杖，對方仍會受每小時 60 次的 IP 共用限制）。';
+    try{ await navigator.clipboard.writeText(url); toast(msg, cur.token?'good':'bad'); }
+    catch{ prompt('複製這個連結分享出去：', url); }
   };
+  p.querySelector('#c_link').onclick = ()=> makeLink(true);
+  p.querySelector('#c_link2').onclick = ()=> makeLink(false);
   p.querySelector('#c_init').onclick = async ()=>{
     if(!confirm('會把目前畫面上的資料寫到雲端，覆蓋雲端現有內容。確定嗎？')) return;
     S.baseRev = 0; await push(false, true);
@@ -1170,6 +1246,7 @@ function viewCloud(){
       <button class="btn" id="b_exp">匯出 JSON</button>
       <button class="btn" id="b_csv">匯出總表 CSV</button>
       <button class="btn" id="b_imp">匯入 JSON</button>
+      <button class="btn" id="b_prev">還原被覆蓋的上一份</button>
       <button class="btn danger" id="b_reset">重設為範例資料</button>
       <input type="file" id="b_file" accept=".json,application/json" hidden>
     </div></div></div>`);
@@ -1180,6 +1257,13 @@ function viewCloud(){
     const f = e.target.files[0]; if(!f) return;
     try{ const d = normalize(JSON.parse(await f.text())); S.data = d; markDirty(); render(); toast('已匯入，記得按「保存」上傳','good'); }
     catch(err){ toast('檔案不是有效的 JSON','bad'); }
+  };
+  b.querySelector('#b_prev').onclick = ()=>{
+    const raw = localStorage.getItem(LS.prev);
+    if(!raw){ toast('沒有可還原的舊資料','bad'); return; }
+    const o = JSON.parse(raw);
+    if(!confirm(`還原成被覆蓋前的那一份？\n（v${o.rev} · ${fmt(o.updatedAt)} · ${o.teams?.length||0} 隊）\n還原後記得按「保存」才會上傳。`)) return;
+    S.data = normalize(o); markDirty(); render(); toast('已還原，請確認後按保存','good');
   };
   b.querySelector('#b_reset').onclick = ()=>{ if(!confirm('會清掉目前所有成績，確定？')) return; S.data = normalize(defaultData()); markDirty(); render(); };
   frag.appendChild(b);
@@ -1227,6 +1311,7 @@ window.addEventListener('beforeunload', e=>{ if(S.dirty){ e.preventDefault(); e.
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) pull(false); });
 
 (async function init(){
+  adoptUrlParams();
   const cached = localStorage.getItem(LS.cache);
   S.data = normalize(cached ? JSON.parse(cached) : defaultData());
   S.baseRev = S.data.rev;
