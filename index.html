@@ -163,6 +163,40 @@ details.help ol{padding-left:20px;margin:6px 0}
 details.help li{margin-bottom:5px}
 code{background:#eef1f5;padding:1px 5px;border-radius:4px;font-size:12.5px}
 
+/* 手寫板照片 */
+.photos{display:flex;gap:12px;flex-wrap:wrap;padding:14px 16px}
+.pcard{width:190px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.pcard img{display:block;width:100%;height:130px;object-fit:cover;cursor:zoom-in;background:#eef1f5}
+.pcard .meta{padding:7px 9px;font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+.pcard .meta b{color:var(--ink-2);font-size:12px;font-weight:700}
+.pcard .meta button{margin-left:auto;color:var(--coral);font-size:12px;font-weight:700}
+.pdrop{width:190px;height:172px;border:2px dashed var(--line);border-radius:10px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:4px;color:var(--ink-3);font-size:13px;font-weight:700;background:#fafbfd}
+.pdrop:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-soft)}
+.pdrop .big{font-size:26px;line-height:1}
+.pbar{padding:11px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--line-2);background:#f7f9fc}
+.pbar .sz{font-size:12px;color:var(--ink-3)}
+.lightbox{position:fixed;inset:0;z-index:95;background:rgba(15,26,42,.9);display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out}
+.lightbox img{max-width:100%;max-height:100%;border-radius:8px}
+.lightbox .cap{position:fixed;left:0;right:0;bottom:16px;text-align:center;color:#fff;font-size:13px}
+
+/* 署名對話框 */
+.overlay{position:fixed;inset:0;z-index:90;background:rgba(15,26,42,.55);display:flex;align-items:center;justify-content:center;padding:18px}
+.modal{background:var(--card);border-radius:14px;padding:22px;max-width:420px;width:100%;box-shadow:0 24px 60px -12px rgba(15,26,42,.5)}
+.modal h3{margin:0 0 6px;font-size:18px;font-weight:900}
+.modal p{margin:0 0 14px;font-size:13.5px;color:var(--ink-2);line-height:1.6}
+.modal .inp{font-size:17px;padding:10px 12px;font-weight:700}
+.modal .acts{display:flex;gap:8px;margin-top:14px}
+.modal .acts .btn{flex:1}
+.modal .tiny{margin:12px 0 0;font-size:12px;color:var(--ink-3)}
+.modal .err{color:var(--coral);font-weight:700;font-size:12.5px;margin:6px 0 0}
+#whoPill{background:var(--teal-soft);color:var(--teal);cursor:pointer;border:0}
+#whoPill:hover{background:#cfeee7}
+.logrow{display:flex;gap:10px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--line-2);font-size:13px}
+.logrow:last-child{border-bottom:0}
+.logrow b{min-width:52px;font-size:12px;color:var(--ink-3);font-weight:700}
+.logrow .who{font-weight:700}
+
 /* 大字 / 投影模式 */
 body.big{font-size:17px}
 body.big table.board td{font-size:26px;padding:13px 14px}
@@ -199,8 +233,9 @@ body.big table.board th.rowhd{font-size:16px}
         <b id="stampTime">尚未連線</b>
         <span id="stampWho">請先到「設定」完成雲端連線</span>
       </div>
+      <button class="pill" id="whoPill" hidden title="點一下可更改署名"></button>
       <span class="pill ro" id="modePill" hidden>唯讀模式</span>
-      <span class="pill dirty" id="dirtyPill" hidden>有未保存的變更</span>
+      <button class="pill dirty" id="dirtyPill" hidden title="點一下可捨棄這些變更">有未保存的變更 ✕</button>
       <button class="btn" id="btnPull">更新</button>
       <button class="btn primary" id="btnPush">保存</button>
     </div>
@@ -288,7 +323,8 @@ function defaultData(){
 (function(){ /* 由 normalize 補上 tieBreak */ })();
 
 function normalize(d){
-  d.teams ||= []; d.competitions ||= [];
+  d.teams ||= []; d.competitions ||= []; d.log ||= [];
+  d.photoGistId ||= ''; d.photoRev ??= 0;
   const ids = new Set(d.teams.map(t=>t.id));
   d.competitions.forEach(c=>{
     // 舊版沒有名冊 → 預設全員參賽，並把當時的隊長資訊帶進來
@@ -508,8 +544,95 @@ function removeFromRoster(c, teamId){
   c.events.forEach(ev=>{ delete ev.entries[teamId]; });
 }
 
+/* ============================================================
+   手寫板照片：存在「另一個 Gist」，與主資料分開
+   主資料每 10 秒就被每台裝置抓一次，照片放進去會把流量撐爆，
+   所以照片只在 photoRev 變動時才下載。相簿 Gist 第一次上傳時自動建立。
+   ============================================================ */
+const PHOTO_FILE = 'photos.json';
+const Photos = {
+  cache: { rev:-1, data:null },
+  loading: false,
+
+  /** 壓縮成長邊 1600、JPEG，必要時再降品質，避免單張破 700KB */
+  compress(file){
+    return new Promise((res, rej)=>{
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = ()=>{
+        const sc = Math.min(1, 1600 / Math.max(img.width, img.height));
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(img.width*sc); cv.height = Math.round(img.height*sc);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        let q = 0.72, out = cv.toDataURL('image/jpeg', q);
+        while(out.length > 700000 && q > 0.35){ q -= 0.08; out = cv.toDataURL('image/jpeg', q); }
+        URL.revokeObjectURL(url);
+        res(out);
+      };
+      img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error('這個檔案不是圖片，或瀏覽器讀不到')); };
+      img.src = url;
+    });
+  },
+
+  async load(force){
+    const gid = S.data.photoGistId;
+    if(!gid) return {};
+    if(!force && this.cache.data && this.cache.rev === S.data.photoRev) return this.cache.data;
+    const c = Store.cfg();
+    const h = { 'Accept':'application/vnd.github+json' };
+    if(c.token) h.Authorization = 'Bearer ' + c.token;
+    const r = await fetch('https://api.github.com/gists/' + gid, { headers:h, cache:'no-store' });
+    noteRate(r);
+    if(r.status === 429 || (r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0')) throw new RateError(r);
+    if(!r.ok) throw new Error('讀取照片失敗（HTTP ' + r.status + '）');
+    const j = await r.json();
+    const f = j.files && (j.files[PHOTO_FILE] || Object.values(j.files)[0]);
+    let content = f ? f.content : '{}';
+    if(f && f.truncated && f.raw_url) content = await (await fetch(f.raw_url)).text();
+    const data = JSON.parse(content || '{}');
+    this.cache = { rev:S.data.photoRev, data };
+    return data;
+  },
+
+  async save(all){
+    const c = Store.cfg();
+    if(!c.token) throw new Error('唯讀模式無法上傳照片');
+    const size = JSON.stringify(all).length;
+    if(size > 6e6) throw new Error('相簿已接近容量上限，請先刪掉幾張舊照片');
+    const headers = { 'Accept':'application/vnd.github+json', 'Authorization':'Bearer '+c.token, 'Content-Type':'application/json' };
+    const files = { [PHOTO_FILE]: { content: JSON.stringify(all) } };
+    let r;
+    if(S.data.photoGistId){
+      r = await fetch('https://api.github.com/gists/' + S.data.photoGistId, { method:'PATCH', headers, body:JSON.stringify({ files }) });
+    } else {
+      r = await fetch('https://api.github.com/gists', { method:'POST', headers,
+        body: JSON.stringify({ files, public:false, description:'家庭日計分板 · 手寫板照片' }) });
+    }
+    noteRate(r);
+    if(!r.ok) throw new Error('照片上傳失敗（HTTP ' + r.status + '）');
+    const j = await r.json();
+    S.data.photoGistId = j.id;
+    S.data.photoRev = (Number(S.data.photoRev)||0) + 1;
+    this.cache = { rev:S.data.photoRev, data:all };
+    markDirty();
+    await push(true);            // 主資料帶著新的 photoRev 上傳，其他裝置才知道要重抓
+  },
+};
+
+function lightbox(src, cap){
+  const ov = el(`<div class="lightbox"><img src="${src}" alt=""><div class="cap">${esc(cap||'')}</div></div>`);
+  ov.onclick = ()=> ov.remove();
+  document.body.appendChild(ov);
+}
+
 /* ---------- 同步 ---------- */
-function markDirty(){ S.dirty = true; paintSync(); scheduleAuto(); }
+let roWarnAt = 0;
+function markDirty(){
+  if(!Store.canWrite){                     // 唯讀裝置：不記錄變更，也不要嚇使用者
+    if(Date.now() - roWarnAt > 6000){ roWarnAt = Date.now(); toast('唯讀模式，這項變更不會被保存','bad'); }
+    return;
+  }
+  S.dirty = true; paintSync(); scheduleAuto();
+}
 let autoT=null;
 function scheduleAuto(){
   const c = Store.cfg();
@@ -527,6 +650,10 @@ function paintSync(){
   const dot = $('#dot'), t = $('#stampTime'), w = $('#stampWho');
   $('#dirtyPill').hidden = !S.dirty;
   $('#modePill').hidden = Store.canWrite;
+  const who = Store.cfg().who;
+  const wp = $('#whoPill');
+  wp.hidden = !(Store.canWrite && who);
+  if(who) wp.textContent = '我是 ' + who;
   $('#btnPush').disabled = !Store.canWrite || S.saving;
   if(S.lastErr){ dot.className='dot bad'; t.textContent='同步異常'; w.textContent=S.lastErr; return; }
   if(!S.data){ dot.className='dot off'; return; }
@@ -534,6 +661,44 @@ function paintSync(){
   t.textContent = '最後更新 ' + fmt(S.data.updatedAt);
   w.textContent = (S.data.updatedBy ? '由 ' + S.data.updatedBy : '') + ' · v' + S.data.rev + (Store.mode==='local'?' · 本機模式':'');
 }
+/** 可修改資料的裝置必須先登記姓名，否則更新紀錄看不出是誰 */
+function nameNeeded(){ return Store.canWrite && Store.mode === 'gist' && !Store.cfg().who; }
+function showNameGate(force){
+  if($('#nameGate')) return;
+  const cur = Store.cfg().who || '';
+  const ov = el(`<div class="overlay" id="nameGate"><div class="modal">
+      <h3>${force ? '請先登記你是誰' : '更改署名'}</h3>
+      <p>${force ? '這台裝置可以修改成績。每次保存都會記下是誰改的，方便現場對帳、也避免改錯了找不到人。' : '之後的保存會以這個名字記錄。'}</p>
+      <input class="inp" id="nameIn" value="${esc(cur)}" placeholder="例如：王小明、場控A、計時組" maxlength="20" autocomplete="name">
+      <div class="err" id="nameErr" hidden></div>
+      <div class="acts">
+        <button class="btn primary" id="nameOk">${force ? '開始計分' : '儲存'}</button>
+        ${force ? '<button class="btn" id="nameRo">我只是要看</button>' : '<button class="btn" id="nameCancel">取消</button>'}
+      </div>
+      <p class="tiny">填好後右上角會顯示「我是 …」，點它隨時可以改。</p>
+    </div></div>`);
+  const input = ov.querySelector('#nameIn');
+  const err = ov.querySelector('#nameErr');
+  const submit = ()=>{
+    const v = input.value.trim().replace(/\s+/g,' ');
+    if(v.length < 1){ err.hidden = false; err.textContent = '請至少填一個字，讓大家認得出是誰'; input.focus(); return; }
+    if(/^(未署名|不知道|test|aaa|123)$/i.test(v)){ err.hidden = false; err.textContent = '請填真的認得出來的名字'; input.focus(); return; }
+    const c = Store.cfg(); c.who = v; Store.saveCfg(c);
+    ov.remove(); paintSync(); toast('已登記為 ' + v, 'good');
+  };
+  ov.querySelector('#nameOk').onclick = submit;
+  input.onkeydown = e=>{ if(e.key === 'Enter') submit(); };
+  const ro = ov.querySelector('#nameRo');
+  if(ro) ro.onclick = ()=>{
+    const c = Store.cfg(); c.viewOnly = true; Store.saveCfg(c);
+    ov.remove(); render(); paintSync(); toast('已切換為唯讀模式','good');
+  };
+  const cancel = ov.querySelector('#nameCancel');
+  if(cancel) cancel.onclick = ()=> ov.remove();
+  document.body.appendChild(ov);
+  setTimeout(()=>{ input.focus(); input.select(); }, 50);
+}
+
 function toast(msg, kind=''){
   const d = document.createElement('div'); d.className=kind; d.textContent=msg;
   $('#toastHost').appendChild(d);
@@ -573,6 +738,7 @@ function applyRemote(remote){
 }
 async function push(silent=false, force=false){
   if(!Store.canWrite){ toast('目前為唯讀模式，請先在「設定」填入權杖','bad'); return; }
+  if(nameNeeded()){ showNameGate(true); toast('請先登記你是誰，再保存','bad'); return; }
   if(S.saving) return;
   S.saving = true; paintSync();
   try{
@@ -587,6 +753,7 @@ async function push(silent=false, force=false){
     S.data.rev = (Number(S.data.rev)||0) + 1;
     S.data.updatedAt = new Date().toISOString();
     S.data.updatedBy = Store.cfg().who || '未署名';
+    S.data.log = (S.data.log || []).concat([{ rev:S.data.rev, by:S.data.updatedBy, at:S.data.updatedAt }]).slice(-40);
     const w = await Store.write(S.data);
     if(w.etag) S.etag = w.etag;
     S.baseRev = S.data.rev; S.dirty = false; S.lastErr='';
@@ -678,7 +845,21 @@ function render(){
   else if(S.tab==='teams') v.appendChild(viewTeams());
   else if(S.tab==='setup') v.appendChild(viewSetup());
   else if(S.tab==='cloud') v.appendChild(viewCloud());
+  applyReadOnly();
   paintSync();
+}
+
+/** 唯讀裝置：鎖住所有會改資料的欄位與按鈕，只留檢視類操作 */
+function applyReadOnly(){
+  if(Store.canWrite || S.tab === 'cloud') return;   // 設定頁要能填權杖，不鎖
+  const v = $('#view');
+  v.querySelectorAll('input,select,textarea').forEach(n=> n.disabled = true);
+  v.querySelectorAll('button').forEach(n=>{ if(!n.classList.contains('no-lock')) n.disabled = true; });
+  v.prepend(el(`<div class="panel" style="border-color:#d3dae4;background:#f7f9fc">
+    <div class="panel-bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px">
+      <b style="font-size:14px">唯讀模式</b>
+      <span style="font-size:13px;color:#4a5a70">你看到的是即時計分板，畫面會自動更新，但不能修改。要登記成績請向主辦索取「計分人員連結」。</span>
+    </div></div>`));
 }
 /** 以 <template> 解析，才能正確產生 <tr>/<td> 這類需要表格上下文的元素 */
 function el(html){
@@ -701,10 +882,10 @@ function viewBoard(){
       <h2>檢視方式</h2>
       <span class="why">每場競賽的欄位順序各自獨立，用下方箭頭即時對齊現場板子</span>
       <div class="tools no-print">
-        <button class="btn sm" id="sortCustom">自訂順序</button>
-        <button class="btn sm" id="sortRank">依名次排列</button>
-        <button class="btn sm" id="bigMode">大字模式</button>
-        <button class="btn sm" id="doPrint">列印</button>
+        <button class="btn sm no-lock" id="sortCustom">自訂順序</button>
+        <button class="btn sm no-lock" id="sortRank">依名次排列</button>
+        <button class="btn sm no-lock" id="bigMode">大字模式</button>
+        <button class="btn sm no-lock" id="doPrint">列印</button>
       </div></div></div>`);
   ctrl.querySelector('#sortCustom').onclick = ()=>{ S.sortMode='custom'; render(); };
   ctrl.querySelector('#sortRank').onclick = ()=>{ S.sortMode='rank'; render(); };
@@ -789,6 +970,33 @@ function boardTable(c){
     const ev = c.events.find(e=>e.id===c.tieBreak);
     p.appendChild(el(`<div class="rules">同分時，以【${esc(ev?.name||'')}】勝負為依據。</div>`));
   }
+
+  // 手寫板照片：預設不載入，按了才抓，避免只想看分數的人白白下載照片
+  const foot = el(`<div class="pbar no-print" style="border-top:1px solid var(--line-2);border-bottom:0">
+    <button class="btn sm no-lock" data-a="show">顯示手寫板照片</button>
+    <span class="sz" data-r="st"></span></div>`);
+  const strip = el(`<div class="photos" style="padding-top:0" hidden></div>`);
+  foot.querySelector('[data-a=show]').onclick = async (e)=>{
+    const btn = e.target;
+    if(!strip.hidden){ strip.hidden = true; btn.textContent = '顯示手寫板照片'; return; }
+    btn.disabled = true; foot.querySelector('[data-r=st]').textContent = '載入中…';
+    try{
+      const all = await Photos.load(false);
+      const list = all[c.id] || [];
+      strip.innerHTML = '';
+      if(!list.length) strip.innerHTML = '<span style="color:var(--ink-3);font-size:13px">這場競賽還沒有照片</span>';
+      list.forEach(ph=>{
+        const card = el(`<div class="pcard"><img src="${ph.data}" alt="" loading="lazy">
+          <div class="meta"><b>${esc(ph.by||'')}</b><span>${fmt(ph.at)}</span></div></div>`);
+        card.querySelector('img').onclick = ()=> lightbox(ph.data, `${c.short||c.name} · ${ph.by||''} · ${fmt(ph.at)}`);
+        strip.appendChild(card);
+      });
+      strip.hidden = false; btn.textContent = '收起照片';
+      foot.querySelector('[data-r=st]').textContent = list.length ? `${list.length} 張` : '';
+    }catch(err){ foot.querySelector('[data-r=st]').textContent = err.message; }
+    btn.disabled = false;
+  };
+  p.appendChild(foot); p.appendChild(strip);
   return p;
 }
 function overallTable(){
@@ -839,6 +1047,7 @@ function viewComp(c){
 
   if(!n) frag.appendChild(el('<div class="panel"><div class="empty-state"><b>還沒有參賽隊伍</b>先在上方加入隊伍，成績欄位才會出現。</div></div>'));
   else c.events.forEach(ev => frag.appendChild(eventCard(c, ev, n)));
+  frag.appendChild(photoPanel(c));
   return frag;
 }
 
@@ -993,6 +1202,97 @@ function eventCard(c, ev, n){
   box.appendChild(wrap);
   box.appendChild(el(`<div class="rules">勾選「中止」代表該隊因故無法完賽，系統會以本項目最後一名（第 ${n} 名）的積分計點。</div>`));
   return box;
+}
+
+/* ---------- 手寫板照片面板 ---------- */
+function photoPanel(c, compact){
+  const p = el(`<div class="panel"><div class="panel-hd">
+      <h2>手寫板紀錄</h2>
+      <span class="why">上傳現場紙本板子的照片，所有人立刻看得到</span>
+      <div class="tools">
+        <button class="btn sm no-lock" data-a="reload">重新整理</button>
+        <button class="btn sm" data-a="pick">上傳照片</button>
+      </div></div>
+    <div class="pbar"><span class="sz" data-r="info">載入中…</span></div>
+    <div class="photos" data-r="grid"><span style="color:var(--ink-3);font-size:13px">載入中…</span></div>
+    <input type="file" accept="image/*" multiple hidden data-r="file"></div>`);
+
+  const grid = p.querySelector('[data-r=grid]');
+  const info = p.querySelector('[data-r=info]');
+  const file = p.querySelector('[data-r=file]');
+
+  const paint = (list, all)=>{
+    grid.innerHTML = '';
+    (list||[]).forEach(ph=>{
+      const card = el(`<div class="pcard">
+          <img src="${ph.data}" alt="${esc(ph.name||'')}" loading="lazy">
+          <div class="meta"><b>${esc(ph.by||'')}</b><span>${fmt(ph.at)}</span>
+            <button data-x="1">刪除</button></div>
+        </div>`);
+      card.querySelector('img').onclick = ()=> lightbox(ph.data, `${c.short||c.name} · ${ph.by||''} · ${fmt(ph.at)}`);
+      card.querySelector('[data-x]').onclick = async ()=>{
+        if(!confirm('刪除這張照片？')) return;
+        all[c.id] = (all[c.id]||[]).filter(x=>x.id !== ph.id);
+        try{ await Photos.save(all); toast('已刪除','good'); render(); }
+        catch(e){ toast(e.message,'bad'); }
+      };
+      grid.appendChild(card);
+    });
+    if(Store.canWrite){
+      const drop = el(`<button class="pdrop"><span class="big">＋</span><span>上傳照片</span>
+        <span style="font-weight:400;font-size:11.5px">手機可直接拍照</span></button>`);
+      drop.onclick = ()=> file.click();
+      grid.appendChild(drop);
+    } else if(!(list||[]).length){
+      grid.innerHTML = '<span style="color:var(--ink-3);font-size:13px">目前還沒有上傳照片</span>';
+    }
+    const bytes = JSON.stringify(all||{}).length;
+    info.textContent = `${(list||[]).length} 張照片 · 相簿目前約 ${(bytes/1048576).toFixed(2)} MB`
+      + (S.data.photoGistId ? '' : ' · 第一次上傳時會自動建立相簿');
+  };
+
+  const refresh = async (force)=>{
+    try{
+      const all = await Photos.load(force);
+      paint(all[c.id] || [], all);
+    }catch(e){
+      grid.innerHTML = '';
+      info.textContent = e.message;
+      if(Store.canWrite){
+        const drop = el(`<button class="pdrop"><span class="big">＋</span><span>上傳照片</span></button>`);
+        drop.onclick = ()=> file.click();
+        grid.appendChild(drop);
+      }
+    }
+  };
+
+  const upload = async (files)=>{
+    if(!files || !files.length) return;
+    if(!Store.canWrite){ toast('唯讀模式無法上傳','bad'); return; }
+    if(nameNeeded()){ showNameGate(true); return; }
+    info.textContent = `處理中… 0/${files.length}`;
+    try{
+      const all = await Photos.load(true);
+      all[c.id] ||= [];
+      let i = 0;
+      for(const f of files){
+        i++;
+        info.textContent = `壓縮中… ${i}/${files.length}`;
+        const data = await Photos.compress(f);
+        all[c.id].push({ id:uid('p'), name:f.name, at:new Date().toISOString(), by:Store.cfg().who||'', data });
+      }
+      info.textContent = '上傳中…';
+      await Photos.save(all);
+      toast(`已上傳 ${files.length} 張，其他裝置馬上看得到`,'good');
+      paint(all[c.id], all);
+    }catch(e){ toast(e.message,'bad'); info.textContent = e.message; }
+  };
+
+  p.querySelector('[data-a=pick]').onclick = ()=> file.click();
+  p.querySelector('[data-a=reload]').onclick = ()=> refresh(true);
+  file.onchange = e=>{ const fs = [...e.target.files]; e.target.value=''; upload(fs); };
+  refresh(false);
+  return p;
 }
 
 /* ---------- 隊伍與聯絡人 ---------- */
@@ -1240,6 +1540,14 @@ function viewCloud(){
   };
   frag.appendChild(p);
 
+  const log = (S.data.log || []).slice().reverse().slice(0, 12);
+  const lp = el(`<div class="panel"><div class="panel-hd"><h2>最近更新紀錄</h2>
+      <span class="why">誰在什麼時候改了哪一版</span></div>
+    <div class="panel-bd">${ log.length
+      ? log.map(x=>`<div class="logrow"><b>v${x.rev}</b><span class="who">${esc(x.by||'未署名')}</span><span style="color:var(--ink-3)">${fmt(x.at)}</span></div>`).join('')
+      : '<div class="empty-state" style="padding:18px">還沒有任何保存紀錄</div>' }</div></div>`);
+  frag.appendChild(lp);
+
   const b = el(`<div class="panel"><div class="panel-hd"><h2>備份與還原</h2>
       <span class="why">活動前後各匯出一次，最保險</span></div>
     <div class="panel-bd"><div class="tools" style="margin-left:0">
@@ -1305,6 +1613,13 @@ function toCSV(){
 }
 
 /* ---------- 啟動 ---------- */
+$('#whoPill').onclick = ()=> showNameGate(false);
+$('#dirtyPill').onclick = async ()=>{
+  if(!S.dirty) return;
+  if(!confirm('捨棄這台裝置上未保存的變更，改用雲端最新版本？')) return;
+  S.dirty = false; S.remote = null; S.baseRev = 0; S.etag = null;
+  renderBanner(); await pull(true);
+};
 $('#btnPull').onclick = ()=> pull(true);
 $('#btnPush').onclick = ()=> push(false);
 window.addEventListener('beforeunload', e=>{ if(S.dirty){ e.preventDefault(); e.returnValue=''; } });
@@ -1317,6 +1632,7 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) pull(fa
   S.baseRev = S.data.rev;
   render();
   if(Store.mode==='gist'){ await pull(false); startPolling(); }
+  if(nameNeeded()) showNameGate(true);
   else { S.tab = 'board'; render(); }
   paintSync();
 })();
