@@ -1,64 +1,99 @@
 {
   "schema": 1,
-  "rev": 1,
-  "updatedAt": "2026-09-16T08:49:16.477Z",
-  "updatedBy": "初始建立",
-  "title": "瑞昱39 家庭日 · 競賽計分總表",
+  "rev": 23,
+  "updatedAt": "2026-09-16T11:18:31.744Z",
+  "updatedBy": "未署名",
+  "title": "瑞昱40 家庭日 · 競賽計分總表",
   "subtitle": "歡樂無限 · 團隊攜手向前衝",
   "showOverall": true,
   "teams": [
     {
-      "id": "t_rekai47gd",
+      "id": "t_c4wxzfq0l",
+      "name": "供應鏈永不掉棒",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "id": "t_14cshtq0l",
       "name": "RTK_Fatout",
       "captain": "",
       "contact": "",
       "note": ""
     },
     {
-      "id": "t_oey76j7gd",
-      "name": "Display_Bon",
+      "id": "t_39bplvq0l",
+      "name": "巨巨蟹",
       "captain": "",
       "contact": "",
       "note": ""
     },
     {
-      "id": "t_4q2gnl7gd",
-      "name": "狂賀!順子晉升軟體總監",
+      "": "t_la3lg2q0l",
+      "name": "燒完Token，準備來睏",
       "captain": "",
       "contact": "",
       "note": ""
     },
     {
-      "id": "t_gglo7u7gd",
-      "name": "整個跑起來不太隊",
+      "": "t_2lrpirq0l",
+      "name": "芸仙請我來就隊",
       "captain": "",
       "contact": "",
       "note": ""
     },
     {
-      "id": "t_wrxxax7gd",
-      "name": "來都來了",
+      "": "t_df6jozq0l",
+      "name": "壓軸第六隊",
       "captain": "",
       "contact": "",
       "note": ""
     },
     {
-      "id": "t_adn7qf7gd",
-      "name": "大展鴻圖",
+      "": "t_9swv3hq0l",
+      "name": "蟹寶王",
       "captain": "",
       "contact": "",
       "note": ""
     },
     {
-      "id": "t_6e3rgl7gd",
-      "name": "SMC_性價比突破天際",
+      "": "t_tx1ehzq0l",
+      "name": "RDC 歡樂運動團",
       "captain": "",
       "contact": "",
       "note": ""
     },
     {
-      "id": "t_lfb8uh7gd",
-      "name": "肌肉胖子",
+      "": "t_o399sn7dk",
+      "name": "綠毛蟲超進化",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "": "t_mey6wudg0",
+      "name": "毛起來報名幼兒園就隊",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "": "t_fwow7gq8n",
+      "name": "咿~~~呀~~~",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "": "t_yfiz873ov",
+      "name": "DFT大老鷹",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "": "t_yhog06cbr",
+      "name": "智供無死角",
       "captain": "",
       "contact": "",
       "note": ""
@@ -66,7 +101,7 @@
   ],
   "competitions": [
     {
-      "id": "c_ivwvos7gd",
+      "": "c_qbo7qeq0m",
       "name": "瑞昱最強鐵人三項爭霸賽",
       "short": "鐵人三項",
       "weight": 1,
@@ -74,49 +109,37 @@
       "note": "三項競賽依名次給予權重積分，加總後為隊伍分數，分數最高者為冠軍。",
       "roster": [
         {
-          "teamId": "t_rekai47gd",
+          "team": "t_c4wxzfq0l",
+          "captain": "卓彥夆",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "team": "t_14cshtq0l",
           "captain": "",
           "contact": "",
           "note": ""
         },
         {
-          "teamId": "t_oey76j7gd",
+          "team": "t_39bplvq0l",
           "captain": "",
           "contact": "",
           "note": ""
         },
         {
-          "teamId": "t_4q2gnl7gd",
+          "team": "t_la3lg2q0l",
+          "captain": "張芸瑄",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "team": "t_2lrpirq0l",
           "captain": "",
           "contact": "",
           "note": ""
         },
         {
-          "teamId": "t_gglo7u7gd",
-          "captain": "",
-          "contact": "",
-          "note": ""
-        },
-        {
-          "teamId": "t_wrxxax7gd",
-          "captain": "",
-          "contact": "",
-          "note": ""
-        },
-        {
-          "teamId": "t_adn7qf7gd",
-          "captain": "",
-          "contact": "",
-          "note": ""
-        },
-        {
-          "teamId": "t_6e3rgl7gd",
-          "captain": "",
-          "contact": "",
-          "note": ""
-        },
-        {
-          "teamId": "t_lfb8uh7gd",
+          "team": "t_df6jozq0l",
           "captain": "",
           "contact": "",
           "note": ""
@@ -124,8 +147,8 @@
       ],
       "events": [
         {
-          "id": "e_rgk1697gd",
-          "name": "極限衝鋒",
+          "": "e_e075i7690",
+          "name": "鐵人三項1：極限衝鋒",
           "weight": 30,
           "scores": [
             100,
@@ -137,12 +160,55 @@
             40,
             35
           ],
-          "tail": 35,
-          "entries": {}
+          "tail": 0,
+          "entries": {
+            "t_c4wxzfq0l": {
+              "rank": 6,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_14cshtq0l": {
+              "rank": 1,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_39bplvq0l": {
+              "rank": 5,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_la3lg2q0l": {
+              "rank": 2,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_2lrpirq0l": {
+              "rank": 3,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_df6jozq0l": {
+              "rank": 4,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            }
+          }
         },
         {
-          "id": "e_xbkte17gd",
-          "name": "力拔山河",
+          "": "e_z18iumsvn",
+          "name": "鐵人三項2：力拔山河",
           "weight": 30,
           "scores": [
             100,
@@ -150,16 +216,59 @@
             70,
             60,
             55,
-            55,
-            55,
-            55
+            50,
+            40,
+            35
           ],
-          "tail": 55,
-          "entries": {}
+          "tail": 0,
+          "entries": {
+            "t_c4wxzfq0l": {
+              "rank": 6,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_14cshtq0l": {
+              "rank": 3,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_39bplvq0l": {
+              "rank": 1,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_la3lg2q0l": {
+              "rank": 4,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_2lrpirq0l": {
+              "rank": 2,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_df6jozq0l": {
+              "rank": 5,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            }
+          }
         },
         {
-          "id": "e_3jiifm7gd",
-          "name": "1200公尺大隊接力",
+          "": "e_2a4fvc5v6",
+          "name": "鐵人三項3：1200公尺大隊接力",
           "weight": 40,
           "scores": [
             100,
@@ -171,64 +280,95 @@
             40,
             35
           ],
-          "tail": 35,
-          "entries": {}
+          "tail": 0,
+          "entries": {
+            "t_c4wxzfq0l": {
+              "rank": 4,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_14cshtq0l": {
+              "rank": 6,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_39bplvq0l": {
+              "rank": 3,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_la3lg2q0l": {
+              "rank": 1,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_2lrpirq0l": {
+              "rank": 2,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_df6jozq0l": {
+              "rank": 5,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            }
+          }
         }
       ],
-      "tieBreak": "e_3jiifm7gd"
+      "tieBreak": "e_2a4fvc5v6"
     },
     {
-      "id": "c_vnojir7gd",
-      "name": "趣味競賽",
-      "short": "趣味競賽",
+      "": "c_8t389lq0m",
+      "name": "趣味競賽一：就是灌籃高手",
+      "short": "趣味競賽一：就是灌籃高手",
       "weight": 1,
       "mode": "sum",
       "note": "每項取前三名給分，三項累加為趣味競賽總分。",
       "roster": [
         {
-          "teamId": "t_rekai47gd",
+          "team": "t_fwow7gq8n",
           "captain": "",
           "contact": "",
           "note": ""
         },
         {
-          "teamId": "t_oey76j7gd",
+          "team": "t_la3lg2q0l",
           "captain": "",
           "contact": "",
           "note": ""
         },
         {
-          "teamId": "t_4q2gnl7gd",
+          "team": "t_yfiz873ov",
           "captain": "",
           "contact": "",
           "note": ""
         },
         {
-          "teamId": "t_gglo7u7gd",
+          "team": "t_9swv3hq0l",
           "captain": "",
           "contact": "",
           "note": ""
         },
         {
-          "teamId": "t_wrxxax7gd",
+          "team": "t_14cshtq0l",
           "captain": "",
           "contact": "",
           "note": ""
         },
         {
-          "teamId": "t_adn7qf7gd",
-          "captain": "",
-          "contact": "",
-          "note": ""
-        },
-        {
-          "teamId": "t_6e3rgl7gd",
-          "captain": "",
-          "contact": "",
-          "note": ""
-        },
-        {
-          "teamId": "t_lfb8uh7gd",
+          "team": "t_yhog06cbr",
           "captain": "",
           "contact": "",
           "note": ""
@@ -236,43 +376,259 @@
       ],
       "events": [
         {
-          "id": "e_x634n97gd",
-          "name": "趣味競賽一",
+          "": "e_jthnqxq0m",
+          "name": "趣味競賽一：就是灌籃高手",
           "weight": 100,
           "scores": [
             100,
             85,
-            70
+            70,
+            60,
+            55,
+            50,
+            40,
+            35
           ],
           "tail": 0,
-          "entries": {}
-        },
-        {
-          "id": "e_heia2l7gd",
-          "name": "趣味競賽二",
-          "weight": 100,
-          "scores": [
-            100,
-            85,
-            70
-          ],
-          "tail": 0,
-          "entries": {}
-        },
-        {
-          "id": "e_h8nrf37gd",
-          "name": "趣味競賽三",
-          "weight": 100,
-          "scores": [
-            100,
-            85,
-            70
-          ],
-          "tail": 0,
-          "entries": {}
+          "entries": {
+            "t_fwow7gq8n": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_la3lg2q0l": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_yfiz873ov": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_9swv3hq0l": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_14cshtq0l": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_yhog06cbr": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            }
+          }
         }
       ],
       "tieBreak": null
+    },
+    {
+      "": "c_w3cd2zjfl",
+      "name": "趣味競賽二：螃蟹團隊協力向前衝",
+      "short": "趣味競賽二：螃蟹團隊協力向前衝",
+      "weight": 1,
+      "mode": "sum",
+      "note": "",
+      "tieBreak": null,
+      "roster": [
+        {
+          "team": "t_la3lg2q0l",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "team": "t_9swv3hq0l",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_14cshtq0l",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_tx1ehzq0l",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        }
+      ],
+      "events": [
+        {
+          "id": "e_yusnlqjfl",
+          "name": "趣味競賽二：螃蟹團隊協力向前衝",
+          "weight": 100,
+          "scores": [
+            100,
+            85,
+            70,
+            60,
+            55,
+            50,
+            40,
+            35
+          ],
+          "tail": 0,
+          "entries": {
+            "t_la3lg2q0l": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_9swv3hq0l": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_14cshtq0l": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_tx1ehzq0l": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "c_ldx1a96xd",
+      "name": "趣味競賽三：誰說我是毛毛蟲",
+      "short": "趣味競賽三：誰說我是毛毛蟲",
+      "weight": 1,
+      "mode": "sum",
+      "note": "",
+      "tieBreak": null,
+      "roster": [
+        {
+          "teamId": "t_14cshtq0l",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_la3lg2q0l",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_o399sn7dk",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_mey6wudg0",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_tx1ehzq0l",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_9swv3hq0l",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        }
+      ],
+      "events": [
+        {
+          "id": "e_wdtywr6xd",
+          "name": "趣味競賽三：誰說我是毛毛蟲",
+          "weight": 100,
+          "scores": [
+            100,
+            85,
+            70,
+            60,
+            55,
+            50,
+            40,
+            35
+          ],
+          "tail": 0,
+          "entries": {
+            "t_14cshtq0l": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_la3lg2q0l": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_o399sn7dk": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_mey6wudg0": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_tx1ehzq0l": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            },
+            "t_9swv3hq0l": {
+              "rank": null,
+              "dnf": false,
+              "captain": "",
+              "contact": "",
+              "note": ""
+            }
+          }
+        }
+      ]
     }
   ]
 }
