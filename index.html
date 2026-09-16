@@ -163,6 +163,26 @@ details.help ol{padding-left:20px;margin:6px 0}
 details.help li{margin-bottom:5px}
 code{background:#eef1f5;padding:1px 5px;border-radius:4px;font-size:12.5px}
 
+/* 名次防呆標記 */
+.rmk{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 6px;
+  border-radius:8px;font-size:15px;font-weight:900;flex:none;line-height:1}
+.rmk.m1{background:#fdf1d8;color:#c8910b}
+.rmk.m2{background:#eef1f5;color:#78848f}
+.rmk.m3{background:#f7ece1;color:#a2682d}
+.rmk.ok{background:var(--teal-soft);color:var(--teal)}
+.rmk.dup{background:var(--coral-soft);color:var(--coral)}
+.rmk.over{background:var(--gold-soft);color:#96650a}
+.rmk.none{background:#eef1f5;color:#aab4c0;font-weight:700}
+.rmk.stop{background:var(--coral-soft);color:var(--coral);font-size:12px;font-weight:700}
+select.rank.err{border-color:var(--coral);background:#fff5f3}
+select.rank.warn{border-color:var(--gold);background:#fffaf0}
+.auditbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 16px;font-size:13px;
+  border-bottom:1px solid var(--line-2)}
+.auditbar.good{background:var(--teal-soft);border-bottom-color:#bfe5de;color:#0b6b5f}
+.auditbar.bad{background:#fff5f3;border-bottom-color:#f2c3bb;color:#c92f18}
+.auditbar b{font-weight:900}
+.auditbar .pg{font-weight:900;color:var(--ink)}
+
 /* 獎次徽章（金銀銅） */
 .mdl{display:inline-flex;align-items:center;gap:6px;font-weight:900;font-size:23px;white-space:nowrap;line-height:1.25}
 .mdl .em{font-size:1.05em}
@@ -515,6 +535,46 @@ const S = {
   saving: false,
   lastErr: '',
 };
+
+/* ---------- 名次防呆檢查 ---------- */
+/** 掃出重複、跳號、超出隊數、未登錄 */
+function rankAudit(ev, roster){
+  const n = roster.length;
+  const byRank = {};
+  let filled = 0, dnf = 0, blank = [];
+  roster.forEach(t=>{
+    const en = ev.entries[t.id] || {};
+    if(en.dnf){ dnf++; return; }
+    const r = en.rank;
+    if(r == null){ blank.push(t); return; }
+    filled++;
+    (byRank[r] ||= []).push(t);
+  });
+  const dupes = Object.entries(byRank).filter(([,v]) => v.length > 1)
+                      .map(([r,v]) => ({ rank:Number(r), teams:v }));
+  const over = Object.entries(byRank).filter(([r]) => Number(r) > n)
+                      .flatMap(([r,v]) => v.map(t => ({ team:t, rank:Number(r) })));
+  const used = Object.keys(byRank).map(Number);
+  const max = used.length ? Math.max(...used) : 0;
+  const missing = [];
+  // 只檢查到參賽隊數為止，避免有人誤填大數字時跳出一長串「缺少第 N 名」
+  for(let i = 1; i <= Math.min(max, n); i++) if(!used.includes(i)) missing.push(i);
+  return { n, filled, dnf, blank, dupes, over, missing,
+           ok: filled + dnf === n && !dupes.length && !over.length && !missing.length };
+}
+/** 每一列名次旁的標記 */
+function rankMark(ev, t, audit){
+  const en = ev.entries[t.id] || {};
+  if(en.dnf) return `<span class="rmk stop" title="中止競賽，以最後一名計分">中止</span>`;
+  const r = en.rank;
+  if(r == null) return `<span class="rmk none" title="尚未登錄名次">—</span>`;
+  if(audit.dupes.some(d => d.rank === r)) return `<span class="rmk dup" title="這個名次有兩隊以上，請確認">⚠</span>`;
+  if(r > audit.n) return `<span class="rmk over" title="超過參賽隊數 ${audit.n}">⚠</span>`;
+  if(r === 1) return `<span class="rmk m1" title="冠軍">🥇</span>`;
+  if(r === 2) return `<span class="rmk m2" title="亞軍">🥈</span>`;
+  if(r === 3) return `<span class="rmk m3" title="季軍">🥉</span>`;
+  return `<span class="rmk ok" title="已登錄">✓</span>`;
+}
 
 /* ---------- 歷年紀錄比較 ---------- */
 /** 接受 0'41"79、1'09"58、41"79、1:09.58、41.79、41；空白 null、格式錯 NaN */
@@ -1391,7 +1451,7 @@ function eventCard(c, ev, n){
   hd.querySelector('[data-a=clear]').onclick = ()=>{
     if(!confirm(`清空「${ev.name}」所有名次？（隊長聯絡資訊會保留）`)) return;
     Object.values(ev.entries).forEach(e=>{ e.rank=null; e.dnf=false; });
-    markDirty(); render();
+    markDirty(); render(); toast('已清空「'+ev.name+'」的名次','good');
   };
   hd.querySelector('[data-a=del]').onclick = ()=>{
     if(!confirm(`刪除項目「${ev.name}」？`)) return;
@@ -1419,6 +1479,20 @@ function eventCard(c, ev, n){
     chips.appendChild(b);
   });
   box.appendChild(q);
+
+  // 名次登錄狀態列
+  const au = rankAudit(ev, roster);
+  const probs = [];
+  au.dupes.forEach(d => probs.push(`第 ${d.rank} 名重複（${d.teams.map(t=>t.name).join('、')}）`));
+  au.missing.forEach(m => probs.push(`缺少第 ${m} 名`));
+  au.over.forEach(o => probs.push(`${o.team.name} 填第 ${o.rank} 名，超過參賽隊數 ${au.n}`));
+  box.appendChild(el(`<div class="auditbar ${probs.length ? 'bad' : (au.ok ? 'good' : '')}">
+      <span class="pg">登錄進度 ${au.filled + au.dnf} / ${au.n} 隊</span>
+      ${ au.dnf ? `<span>中止 ${au.dnf} 隊</span>` : '' }
+      ${ probs.length ? `<b>⚠ ${probs.map(esc).join('　｜　')}</b>`
+         : (au.ok ? '<b>✓ 全部登錄完成，名次無重複、無跳號</b>'
+                  : `<span>還有 ${au.blank.length} 隊未登錄：${au.blank.map(t=>esc(t.name)).join('、')}</span>`) }
+    </div>`));
 
   // 歷年紀錄橫幅
   const rs = recordState(ev, c);
@@ -1454,11 +1528,13 @@ function eventCard(c, ev, n){
     if(en.dnf) tr.className='dnf';
     const sc = eventScore(ev, t.id, n);
     let opts = '<option value="">—</option>';
-    for(let i=1;i<=Math.max(n, 12);i++) opts += `<option value="${i}" ${en.rank===i?'selected':''}>第 ${i} 名</option>`;
+    for(let i=1;i<=Math.max(n, 12);i++)
+      opts += `<option value="${i}" ${en.rank===i?'selected':''}>第 ${i} 名${i>n?'（超過隊數）':''}</option>`;
     tr.innerHTML = `
-      <td class="tname">${esc(t.name)}${dupes[en.rank]>1?' <span style="color:#e63b22;font-size:12px">名次重複</span>':''}</td>
+      <td class="tname">${esc(t.name)}</td>
       <td><div class="rankcell">
-        <select class="inp rank" data-f="rank" ${en.dnf?'disabled':''}>${opts}</select>
+        ${rankMark(ev, t, au)}
+        <select class="inp rank ${au.dupes.some(d=>d.rank===en.rank)?'err':(en.rank>au.n?'warn':'')}" data-f="rank" ${en.dnf?'disabled':''}>${opts}</select>
         <label class="chk"><input type="checkbox" data-f="dnf" ${en.dnf?'checked':''}> 中止</label>
       </div></td>
       <td><span class="scorebox ${sc?'':'zero'}">${sc==null?'—':sc}</span></td>
