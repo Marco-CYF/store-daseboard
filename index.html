@@ -603,7 +603,12 @@ function render(){
   else if(S.tab==='cloud') v.appendChild(viewCloud());
   paintSync();
 }
-function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstElementChild; }
+/** 以 <template> 解析，才能正確產生 <tr>/<td> 這類需要表格上下文的元素 */
+function el(html){
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
+}
 const medal = p => p===1?'🥇':p===2?'🥈':p===3?'🥉':'';
 
 /* ---------- 總計分板 ---------- */
