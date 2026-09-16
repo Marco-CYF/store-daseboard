@@ -376,7 +376,7 @@ const $ = s => document.querySelector(s);
 function defaultData(){
   const names = ['RTK_Fatout','Display_Bon','狂賀!順子晉升軟體總監','整個跑起來不太隊','來都來了','大展鴻圖','SMC_性價比突破天際','肌肉胖子'];
   const teams = names.map(n => ({ id:uid('t'), name:n, captain:'', contact:'', note:'' }));
-  const ev = (name, weight, scores, tail) => ({ id:uid('e'), name, weight, scores, tail, entries:{} });
+  const ev = (name, weight, scores, tail) => newEvent(name, weight, scores, tail);
   const roster = () => teams.map(t => ({ teamId:t.id, captain:'', contact:'', note:'' }));
   return {
     schema: 1,
@@ -416,6 +416,12 @@ function defaultData(){
 // 鐵人三項同分時以「1200公尺大隊接力」勝負為依據
 (function(){ /* 由 normalize 補上 tieBreak */ })();
 
+/** 建立新項目：集中在一處，避免漏掉欄位造成畫面崩掉 */
+function newEvent(name, weight, scores, tail){
+  return { id:uid('e'), name, weight: weight ?? 0, scores: scores || [100,85,70], tail: tail ?? 0,
+           entries:{}, record:{ on:false, better:'min', value:'', holder:'', year:'', unit:'秒' } };
+}
+
 function normalize(d){
   d.teams ||= []; d.competitions ||= []; d.log ||= [];
   d.photoGistId ||= ''; d.photoRev ??= 0;
@@ -448,14 +454,29 @@ function normalize(d){
    目前實作 GitHub Gist。要換別的後端，只要改這三個方法即可。
    ============================================================ */
 /* ---- API 額度追蹤 ---- */
-const Rate = { limit:null, remaining:null, reset:null, blockedUntil:0 };
+/* GitHub 的額度是「分桶」的：讀取、寫入等不同資源各有各的上限，
+   回應標頭 x-ratelimit-resource 會標明這次算在哪個桶，所以分開記錄才不會互相蓋掉。 */
+const Rate = { buckets:{}, last:null, blockedUntil:0 };
 function noteRate(r){
   const g = k => r.headers.get(k);
-  if(g('x-ratelimit-limit') != null){
-    Rate.limit = Number(g('x-ratelimit-limit'));
-    Rate.remaining = Number(g('x-ratelimit-remaining'));
-    Rate.reset = Number(g('x-ratelimit-reset')) * 1000;
-  }
+  if(g('x-ratelimit-limit') == null) return;
+  const res = g('x-ratelimit-resource') || 'core';
+  const b = {
+    resource: res,
+    limit: Number(g('x-ratelimit-limit')),
+    remaining: Number(g('x-ratelimit-remaining')),
+    reset: Number(g('x-ratelimit-reset')) * 1000,
+    at: Date.now(),
+  };
+  Rate.buckets[res] = b;
+  Rate.last = b;
+}
+const RES_NAME = { core:'一般 API', graphql:'GraphQL', search:'搜尋', integration_manifest:'App', code_search:'程式碼搜尋' };
+/** 目前最吃緊的那個桶 */
+function tightestBucket(){
+  const all = Object.values(Rate.buckets);
+  if(!all.length) return null;
+  return all.slice().sort((a,b)=> (a.remaining/a.limit) - (b.remaining/b.limit))[0];
 }
 class RateError extends Error {
   constructor(r){
@@ -825,12 +846,23 @@ function markDirty(){
   }
   S.dirty = true; paintSync(); scheduleAuto();
 }
-let autoT=null;
+let autoT = null, lastAutoPush = 0, lowWarnAt = 0;
 function scheduleAuto(){
   const c = Store.cfg();
   if(!c.autoSave || !Store.canWrite) return;
+  // 額度快見底時停止自動保存，改由人工決定何時送出
+  const tight = tightestBucket();
+  if(tight && tight.limit && tight.remaining <= Math.max(5, tight.limit * 0.05)){
+    if(Date.now() - lowWarnAt > 60000){
+      lowWarnAt = Date.now();
+      toast(`API 額度只剩 ${tight.remaining} 次，已暫停自動保存，請手動按「保存」`, 'bad');
+    }
+    return;
+  }
   clearTimeout(autoT);
-  autoT = setTimeout(()=>push(true), 1500);
+  // 連續編輯時至少間隔 6 秒才送一次，避免每改一格就打一次 API
+  const wait = Math.max(1500, 6000 - (Date.now() - lastAutoPush));
+  autoT = setTimeout(()=>{ lastAutoPush = Date.now(); push(true); }, wait);
 }
 function fmt(iso){
   if(!iso) return '—';
@@ -1168,13 +1200,32 @@ window.addEventListener('scroll', closeMenus, true);
 function render(){
   if(!S.data){ return; }
   renderHeaderBits(); renderTabs();
-  const v = $('#view'); v.innerHTML='';
+  const v = $('#view');
+  const backup = v.innerHTML;
+  v.innerHTML='';
+  try{
   if(S.tab==='board') v.appendChild(viewBoard());
   else if(S.tab.startsWith('c:')) v.appendChild(viewComp(S.data.competitions.find(c=>c.id===S.tab.slice(2))));
   else if(S.tab==='awards') v.appendChild(viewAwards());
   else if(S.tab==='teams') v.appendChild(viewTeams());
   else if(S.tab==='setup') v.appendChild(viewSetup());
   else if(S.tab==='cloud') v.appendChild(viewCloud());
+  }catch(err){
+    // 畫面建到一半出錯時，至少不要留下一片空白讓人以為資料不見了
+    console.error('render failed on tab', S.tab, err);
+    v.innerHTML = backup;
+    const warn = el(`<div class="panel" style="border-color:#f2c3bb;background:#fff5f3">
+      <div class="panel-bd">
+        <b style="color:#c92f18">這個分頁顯示時發生問題</b>
+        <p style="margin:6px 0 10px;font-size:13px;color:var(--ink-2)">你的資料沒有遺失，仍安全存在雲端。畫面顯示的是前一個狀態。
+        錯誤訊息：${esc(String(err && err.message || err))}</p>
+        <button class="btn sm" id="errReload">重新整理頁面</button>
+        <button class="btn sm" id="errBoard">回到總計分板</button>
+      </div></div>`);
+    v.prepend(warn);
+    warn.querySelector('#errReload').onclick = ()=> location.reload();
+    warn.querySelector('#errBoard').onclick = ()=>{ S.tab='board'; render(); };
+  }
   applyReadOnly();
   paintSync();
 }
@@ -1371,7 +1422,7 @@ function viewComp(c){
     <div class="panel-bd"><p class="hint">在每個項目裡登錄名次，總計分板會立即換算積分。名次可用綠色色塊「快速登錄」——依抵達順序點隊伍就好。</p></div></div>`);
   head.querySelector('#addEv').onclick = ()=>{
     const name = prompt('新項目名稱', '新項目'); if(!name) return;
-    c.events.push({ id:uid('e'), name, weight: c.mode==='sum'?100:0, scores:[100,85,70], tail:0, entries:{} });
+    c.events.push(newEvent(name, c.mode==='sum'?100:0));
     markDirty(); render();
   };
   frag.appendChild(head);
@@ -2088,12 +2139,13 @@ function viewSetup(){
     p.querySelector('[data-a=del]').onclick = ()=>{ if(!confirm(`刪除競賽「${c.name}」及其所有成績？`)) return;
       S.data.competitions = S.data.competitions.filter(x=>x.id!==c.id); markDirty(); S.tab='setup'; render(); };
     p.querySelector('[data-a=addev]').onclick = ()=>{
-      c.events.push({ id:uid('e'), name:'新項目', weight:c.mode==='sum'?100:0, scores:[100,85,70], tail:0, entries:{} });
+      c.events.push(newEvent('新項目', c.mode==='sum'?100:0));
       markDirty(); render();
     };
 
     const evHost = p.querySelector('#evs_'+c.id);
     c.events.forEach((ev,ei)=>{
+      ev.record ||= { on:false, better:'min', value:'', holder:'', year:'', unit:'秒' };   // 保險
       const box = el(`<div class="evt"><div class="evt-hd">
           <h3>${esc(ev.name)}</h3>
           <div class="tools"><button class="btn sm" data-a="up">▲</button><button class="btn sm" data-a="down">▼</button>
@@ -2159,7 +2211,7 @@ function viewSetup(){
     const copy = confirm('要沿用「總名冊」裡全部隊伍當作參賽名單嗎？\n\n確定 = 全員先加入（之後可移除）\n取消 = 建立空名冊，自行挑選');
     S.data.competitions.push({ id:uid('c'), name, short:name, weight:1, mode:'sum', note:'', tieBreak:null,
       roster: copy ? S.data.teams.map(t=>({teamId:t.id,captain:'',contact:'',note:''})) : [],
-      events:[{ id:uid('e'), name:name+'一', weight:100, scores:[100,85,70], tail:0, entries:{} }] });
+      events:[ newEvent(name+'一', 100) ] });
     markDirty(); render();
   };
   frag.appendChild(add);
@@ -2208,13 +2260,24 @@ function viewCloud(){
   const rb = p.querySelector('#rateBox');
   if(Store.mode==='gist'){
     const tok = !!c.token;
-    const used = Rate.limit!=null ? `目前剩餘 ${Rate.remaining} / ${Rate.limit} 次` : '尚未取得額度資訊';
-    const resetIn = Rate.reset ? `，約 ${Math.max(0,Math.ceil((Rate.reset-Date.now())/60000))} 分鐘後重置` : '';
+    const list = Object.values(Rate.buckets);
+    const tight = tightestBucket();
+    const low = tight && tight.limit && (tight.remaining / tight.limit) < 0.2;
+    const rows = list.length
+      ? list.map(b=>{
+          const mins = Math.max(0, Math.ceil((b.reset - Date.now())/60000));
+          const pctLeft = b.limit ? Math.round(b.remaining / b.limit * 100) : 0;
+          return `<div style="margin-top:4px">· <b>${esc(RES_NAME[b.resource] || b.resource)}</b>　剩餘 <b>${b.remaining} / ${b.limit}</b>（${pctLeft}%）　約 ${mins} 分鐘後重置</div>`;
+        }).join('')
+      : '<div style="margin-top:4px">· 尚未取得額度資訊（送出第一個請求後才會顯示）</div>';
     rb.className = 'rules';
-    rb.style.cssText = 'margin:0 0 14px;border:1px solid ' + (tok?'#bfe5de':'#f2c3bb') + ';border-radius:8px;background:' + (tok?'#e0f4f0':'#fde8e4');
-    rb.innerHTML = tok
-      ? `<b>已認證</b>：每小時 5,000 次（依 GitHub 帳號計，不是依權杖）。畫面沒變動時的檢查不扣額度，實務上用不完。${used}${resetIn}`
-      : `<b>未認證（唯讀）</b>：每小時只有 60 次，而且是<b>整個對外 IP 共用</b> —— 同一個辦公室的所有人加起來算。本模式已自動把檢查間隔放慢到 120 秒。若現場人多，請改用權杖。${used}${resetIn}`;
+    const tone = !tok ? ['#f2c3bb','#fde8e4'] : (low ? ['#f0d79a','#fff8e6'] : ['#bfe5de','#e0f4f0']);
+    rb.style.cssText = `margin:0 0 14px;border:1px solid ${tone[0]};border-radius:8px;background:${tone[1]}`;
+    rb.innerHTML = (tok
+        ? `<b>已認證</b>：額度依 GitHub 帳號計（不是依權杖）。GitHub 把額度<b>分成好幾個桶</b>，讀取與寫入各自獨立，所以下面的上限數字會不一樣，這是正常的。畫面沒變動時的檢查回傳 304，不扣額度。`
+        : `<b>未認證（唯讀）</b>：每小時只有 60 次，而且是<b>整個對外 IP 共用</b> —— 同一個辦公室的所有人加起來算。本模式已自動把檢查間隔放慢到 120 秒。若現場人多，請改用權杖。`)
+      + rows
+      + (low ? `<div style="margin-top:6px;color:#96650a;font-weight:700">⚠ 「${esc(RES_NAME[tight.resource]||tight.resource)}」這個桶只剩 ${tight.remaining} 次，建議先關掉自動保存，改成手動按「保存」。</div>` : '');
   }
 
   p.querySelector('#c_save').onclick = ()=>{
