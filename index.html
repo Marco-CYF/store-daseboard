@@ -163,6 +163,35 @@ details.help ol{padding-left:20px;margin:6px 0}
 details.help li{margin-bottom:5px}
 code{background:#eef1f5;padding:1px 5px;border-radius:4px;font-size:12.5px}
 
+/* 拖曳排序 */
+.dragh{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;color:var(--ink-3);
+  font-size:15px;line-height:1;padding:5px 7px;border-radius:6px}
+.dragh:hover{background:var(--line-2);color:var(--ink)}
+.dragh:active{cursor:grabbing}
+tr.dragging{background:var(--blue-soft)!important;outline:2px solid var(--blue);outline-offset:-2px}
+tr.dragging td,tr.dragging th{opacity:.92}
+.ochip.dragging{background:var(--blue-soft);border-color:var(--blue);outline:2px solid var(--blue)}
+.ochip .dragh{padding:3px 5px}
+.sorthint{font-size:12px;color:var(--ink-3);padding:8px 16px 0}
+
+/* 分頁下拉選單 */
+.menu{position:relative;display:inline-flex}
+.tab.drop{display:inline-flex;align-items:center;gap:6px;max-width:260px}
+.tab.drop .cur{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab.drop .car{font-size:10px;opacity:.6;flex:none}
+.tab.drop[aria-expanded="true"]{color:var(--coral)}
+.menu-pop{position:absolute;top:calc(100% - 1px);left:0;z-index:60;background:var(--card);border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 12px 32px -8px rgba(15,26,42,.28);min-width:240px;max-height:min(62vh,420px);
+  overflow:auto;padding:6px}
+.menu-pop.right{left:auto;right:0}
+.menu-pop .sec{padding:7px 10px 4px;font-size:11.5px;font-weight:700;color:var(--ink-3);letter-spacing:.04em}
+.menu-pop button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 10px;border-radius:7px;
+  font-size:14px;font-weight:600;color:var(--ink)}
+.menu-pop button:hover{background:#f1f5fa}
+.menu-pop button[aria-current="true"]{background:var(--coral-soft);color:var(--coral);font-weight:800}
+.menu-pop button .sub{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-weight:500}
+.menu-pop button[aria-current="true"] .sub{color:var(--coral);opacity:.75}
+
 /* 手寫板照片 */
 .photos{display:flex;gap:12px;flex-wrap:wrap;padding:14px 16px}
 .pcard{width:190px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
@@ -444,6 +473,7 @@ function adoptUrlParams(){
 const S = {
   data: null,
   baseRev: 0,        // 上次同步到的版本
+  synced: false,     // 是否真的從雲端載入過（避免與本機預設版本號撞號）
   etag: null,
   dirty: false,
   tab: 'board',
@@ -727,7 +757,7 @@ async function pull(manual=true){
     const remote = normalize(r.data);
     S.etag = r.etag;
     if(S.dirty && remote.rev !== S.baseRev){ S.remote = remote; renderBanner(); paintSync(); return; }
-    if(!S.dirty && S.data && remote.rev === S.data.rev){ if(manual) toast('已是最新資料'); paintSync(); return; }
+    if(S.synced && !S.dirty && S.data && remote.rev === S.data.rev){ if(manual) toast('已是最新資料'); paintSync(); return; }
     applyRemote(remote);
     if(manual) toast('已載入最新資料', 'good');
   }catch(e){ S.lastErr = e.message; paintSync(); if(manual) toast(e.message,'bad'); }
@@ -735,7 +765,7 @@ async function pull(manual=true){
 function applyRemote(remote){
   const prev = localStorage.getItem(LS.cache);
   if(prev) localStorage.setItem(LS.prev, prev);   // 保留上一份，可在「連線與備份」還原
-  S.data = remote; S.baseRev = remote.rev; S.dirty = false; S.remote = null;
+  S.data = remote; S.baseRev = remote.rev; S.dirty = false; S.remote = null; S.synced = true;
   localStorage.setItem(LS.cache, JSON.stringify(remote));
   renderBanner(); render(); paintSync();
 }
@@ -805,7 +835,7 @@ function startPolling(){
       if(r.notModified || isBlank(r.data)) return;   // 空的雲端資料一律忽略
       const remote = normalize(r.data);
       S.etag = r.etag;
-      if(remote.rev === S.data?.rev && !S.dirty) return;
+      if(S.synced && remote.rev === S.data?.rev && !S.dirty) return;
       if(remote.rev === S.baseRev) return;
       if(!S.dirty && Store.cfg().autoLoad){
         applyRemote(remote);                                  // 沒有未保存變更 → 直接自動更新
@@ -827,19 +857,132 @@ function renderHeaderBits(){
 }
 function renderTabs(){
   const host = $('#tabs'); host.innerHTML='';
-  const items = [{id:'board', label:'總計分板'}]
-    .concat(S.data.competitions.map(c=>({id:'c:'+c.id, label:c.short||c.name, cnt:c.events.length+' 項'})))
-    .concat([{id:'awards', label:'頒獎典禮', cnt:(S.data.awards||[]).length + ' 項'},
-             {id:'teams', label:'隊伍總名冊'},{id:'setup', label:'賽事設定'},{id:'cloud', label:'連線與備份'}]);
-  items.forEach(it=>{
+  closeMenus();
+
+  const mk = (id, label, cnt)=>{
     const b = document.createElement('button');
     b.className='tab'; b.setAttribute('role','tab');
-    b.setAttribute('aria-selected', String(S.tab===it.id));
-    b.innerHTML = esc(it.label) + (it.cnt?` <span class="cnt">${esc(it.cnt)}</span>`:'');
-    b.onclick = ()=>{ S.tab = it.id; render(); window.scrollTo({top:0}); };
-    host.appendChild(b);
+    b.setAttribute('aria-selected', String(S.tab===id));
+    b.innerHTML = esc(label) + (cnt?` <span class="cnt">${esc(cnt)}</span>`:'');
+    b.onclick = ()=> goTab(id);
+    return b;
+  };
+
+  host.appendChild(mk('board','總計分板'));
+
+  // 競賽數量少就直接攤平，多了才收進下拉選單，避免分頁列爆長
+  const comps = S.data.competitions;
+  if(comps.length <= 3){
+    comps.forEach(c=> host.appendChild(mk('c:'+c.id, c.short||c.name, c.events.length+' 項')));
+  } else {
+    const cur = comps.find(c => S.tab === 'c:'+c.id);
+    host.appendChild(dropTab(cur ? (cur.short||cur.name) : '競賽項目', !!cur, [
+      { sec:`競賽項目（${comps.length}）` },
+      ...comps.map(c=>({ id:'c:'+c.id, label:c.short||c.name, sub:c.events.length+' 項' }))
+    ]));
+  }
+
+  host.appendChild(mk('awards','頒獎典禮',(S.data.awards||[]).length + ' 項'));
+
+  const admin = [
+    { id:'teams', label:'隊伍總名冊', sub:S.data.teams.length+' 隊' },
+    { id:'setup', label:'賽事設定',  sub:comps.length+' 場' },
+    { id:'cloud', label:'連線與備份' },
+  ];
+  const curAdmin = admin.find(x => x.id === S.tab);
+  host.appendChild(dropTab(curAdmin ? curAdmin.label : '管理', !!curAdmin,
+    [{ sec:'管理' }, ...admin], true));
+}
+
+/** 拖曳排序：抓住把手就能移動，滑鼠與觸控都可用。
+ *  拖曳中直接搬動 DOM 節點做即時預覽，放開才寫回資料並重繪。 */
+function makeSortable(container, apply, axis){
+  let row = null, moved = false;
+  const horiz = axis === 'x';
+  const onMove = e=>{
+    if(!row) return;
+    e.preventDefault(); moved = true;
+    const pos = horiz ? e.clientX : e.clientY;
+    const others = [...container.children].filter(r => r !== row && r.dataset.sid);
+    let placed = false;
+    for(const r of others){
+      const b = r.getBoundingClientRect();
+      const mid = horiz ? b.left + b.width/2 : b.top + b.height/2;
+      if(pos < mid){ container.insertBefore(row, r); placed = true; break; }
+    }
+    if(!placed) container.appendChild(row);
+  };
+  const onUp = ()=>{
+    if(!row) return;
+    row.classList.remove('dragging');
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    const order = [...container.children].map(r => r.dataset.sid).filter(Boolean);
+    row = null;
+    if(moved) apply(order);
+  };
+  container.querySelectorAll('.dragh').forEach(h=>{
+    h.onpointerdown = e=>{
+      if(!Store.canWrite) return;
+      e.preventDefault();
+      row = h.closest('[data-sid]');
+      if(!row) return;
+      moved = false;
+      row.classList.add('dragging');
+      document.addEventListener('pointermove', onMove, { passive:false });
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
+    };
   });
 }
+/** 依拖曳後的 id 順序重排原陣列 */
+function reorderBy(list, order, keyOf){
+  const map = new Map(list.map(x => [keyOf(x), x]));
+  const out = order.map(id => map.get(id)).filter(Boolean);
+  list.forEach(x=>{ if(!out.includes(x)) out.push(x); });
+  return out;
+}
+
+/** 下拉式分頁：label 是目前所在項目，點開才列出全部 */
+function dropTab(label, active, items, alignRight){
+  const wrap = document.createElement('div'); wrap.className='menu';
+  const btn = document.createElement('button');
+  btn.className='tab drop'; btn.setAttribute('role','tab');
+  btn.setAttribute('aria-selected', String(!!active));
+  btn.setAttribute('aria-expanded','false');
+  btn.innerHTML = `<span class="cur">${esc(label)}</span><span class="car">▼</span>`;
+  const pop = document.createElement('div');
+  pop.className = 'menu-pop' + (alignRight?' right':'');
+  pop.hidden = true;
+  items.forEach(it=>{
+    if(it.sec){ pop.appendChild(el(`<div class="sec">${esc(it.sec)}</div>`)); return; }
+    const b = document.createElement('button');
+    b.setAttribute('aria-current', String(S.tab === it.id));
+    b.innerHTML = esc(it.label) + (it.sub?`<span class="sub">${esc(it.sub)}</span>`:'');
+    b.onclick = ()=>{ closeMenus(); goTab(it.id); };
+    pop.appendChild(b);
+  });
+  btn.onclick = e=>{
+    e.stopPropagation();
+    const open = pop.hidden;
+    closeMenus();
+    if(open){ pop.hidden = false; btn.setAttribute('aria-expanded','true'); }
+  };
+  wrap.appendChild(btn); wrap.appendChild(pop);
+  return wrap;
+}
+function closeMenus(){
+  document.querySelectorAll('.menu-pop').forEach(p=>{
+    p.hidden = true;
+    const b = p.previousElementSibling;
+    if(b) b.setAttribute('aria-expanded','false');
+  });
+}
+function goTab(id){ S.tab = id; render(); window.scrollTo({top:0}); }
+document.addEventListener('click', closeMenus);
+document.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeMenus(); });
+
 function render(){
   if(!S.data){ return; }
   renderHeaderBits(); renderTabs();
@@ -924,7 +1067,7 @@ function boardTable(c){
   if(S.sortMode==='rank'){ ob.remove(); }
   else c.roster.forEach((r,i)=>{
     const t = teamById(r.teamId); if(!t) return;
-    const chip = el(`<div class="ochip"><span>${esc(t.name)}</span>
+    const chip = el(`<div class="ochip" data-sid="${t.id}"><span class="dragh" title="按住拖曳排序">⠿</span><span>${esc(t.name)}</span>
       <button title="往左" data-d="-1">◀</button><button title="往右" data-d="1">▶</button></div>`);
     chip.querySelectorAll('button').forEach(b=> b.onclick = ()=>{
       const j = i + Number(b.dataset.d);
@@ -934,6 +1077,7 @@ function boardTable(c){
     });
     ob.appendChild(chip);
   });
+  makeSortable(ob, order=>{ c.roster = reorderBy(c.roster, order, r=>r.teamId); markDirty(); render(); }, 'x');
 
   const hr = p.querySelector('thead tr'), tb = p.querySelector('tbody');
   teams.forEach(t=>{
@@ -1064,7 +1208,7 @@ function rosterPanel(c){
     <div class="panel-bd">
       <div id="rPool"></div>
       <div class="scroller"><table class="grid">
-        <thead><tr><th style="width:56px">順序</th><th style="min-width:180px">組別名稱</th>
+        <thead><tr><th style="width:86px">順序</th><th style="min-width:180px">組別名稱</th>
           <th style="min-width:110px">本場隊長</th><th style="min-width:150px">聯繫方式</th>
           <th style="min-width:140px">備註</th><th style="width:60px"></th></tr></thead>
         <tbody></tbody></table></div>
@@ -1074,7 +1218,8 @@ function rosterPanel(c){
   c.roster.forEach((r,i)=>{
     const t = teamById(r.teamId); if(!t) return;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><button class="btn icon sm" data-d="-1">▲</button> <button class="btn icon sm" data-d="1">▼</button></td>
+    tr.dataset.sid = t.id;
+    tr.innerHTML = `<td style="white-space:nowrap"><span class="dragh" title="按住拖曳排序">⠿</span><button class="btn icon sm" data-d="-1">▲</button><button class="btn icon sm" data-d="1">▼</button></td>
       <td><input class="inp" data-g="name" value="${esc(t.name)}"></td>
       <td><input class="inp" data-f="captain" value="${esc(r.captain||'')}" placeholder="${esc(t.captain||'姓名')}"></td>
       <td><input class="inp" data-f="contact" value="${esc(r.contact||'')}" placeholder="${esc(t.contact||'分機 / 手機 / Line')}"></td>
@@ -1095,6 +1240,7 @@ function rosterPanel(c){
     };
     tb.appendChild(tr);
   });
+  makeSortable(tb, order=>{ c.roster = reorderBy(c.roster, order, r=>r.teamId); markDirty(); render(); });
   if(!c.roster.length) tb.appendChild(el('<tr><td colspan="6"><div class="empty-state">尚未加入任何隊伍</div></td></tr>'));
 
   // 可加入的隊伍（來自總名冊）
@@ -1372,7 +1518,7 @@ function awardsView(rows){
 /* 編輯模式 */
 function awardsEdit(rows){
   const p = el(`<div class="panel"><div class="scroller"><table class="grid">
-    <thead><tr><th style="width:56px">順序</th><th style="min-width:210px">獎項名稱</th>
+    <thead><tr><th style="width:86px">順序</th><th style="min-width:210px">獎項名稱</th>
       <th style="min-width:200px">來源</th><th style="width:110px">名次</th>
       <th style="min-width:150px">得獎隊伍</th><th style="min-width:190px">隊長／聯繫方式</th><th style="min-width:130px">頒獎長官</th>
       <th style="min-width:110px">備註</th><th style="width:60px"></th></tr></thead>
@@ -1406,8 +1552,9 @@ function awardsEdit(rows){
              <span style="display:block;font-size:11.5px;color:#c92f18;font-weight:700">同分並列，請先決定</span>`
           : (r.ready ? `<b>${esc(r.teams[0].name)}</b>` : `<span style="color:var(--ink-3);font-size:12.5px">${esc(r.why)}</span>`));
 
+    tr.dataset.sid = a.id;
     tr.innerHTML = `
-      <td><button class="btn icon sm" data-d="-1">▲</button> <button class="btn icon sm" data-d="1">▼</button></td>
+      <td style="white-space:nowrap"><span class="dragh" title="按住拖曳排序">⠿</span><button class="btn icon sm" data-d="-1">▲</button><button class="btn icon sm" data-d="1">▼</button></td>
       <td><input class="inp" data-f="title" value="${esc(a.title)}" placeholder="例：瑞昱趣味競賽_就是灌籃高手"></td>
       <td><select class="inp" data-f="src">${srcOpts}</select></td>
       <td><select class="inp" data-f="place" ${a.source==='manual'?'disabled':''}>${plOpts}</select></td>
@@ -1443,6 +1590,8 @@ function awardsEdit(rows){
     tb.appendChild(tr);
   });
 
+  makeSortable(tb, order=>{ S.data.awards = reorderBy(S.data.awards, order, x=>x.id); markDirty(); render(); });
+  p.insertBefore(el(`<div class="sorthint">抓住左邊的 ⠿ 上下拖曳即可調整頒獎順序，也可以用 ▲▼ 微調。</div>`), p.firstChild);
   p.appendChild(el(`<div class="rules">「來源」可選整場競賽的總名次，也可指定單一項目的名次；破紀錄之類沒有固定來源的獎項選「手動指定隊伍」。
     名次一改，得獎隊伍立刻跟著換。同分並列的獎項會整列標紅，頒獎前務必先決定歸屬。
     聯繫方式取自該場競賽的隊長資料（項目層 → 本場名冊 → 總名冊），手機板上點一下號碼就能直接撥打。</div>`));
@@ -1548,7 +1697,7 @@ function viewTeams(){
     <div class="tools"><button class="btn sm primary" id="addT">新增隊伍</button></div></div>
     <div class="panel-bd" style="padding-bottom:0"><p class="hint">這裡填的隊長與聯繫方式是預設值；某場競賽換人帶隊時，在該場的「參賽隊伍」覆寫即可，不會影響其他競賽。</p></div>
     <div class="scroller"><table class="grid">
-      <thead><tr><th style="width:56px">順序</th><th style="min-width:180px">組別名稱</th><th style="min-width:110px">預設隊長</th>
+      <thead><tr><th style="width:86px">順序</th><th style="min-width:180px">組別名稱</th><th style="min-width:110px">預設隊長</th>
         <th style="min-width:150px">聯繫方式</th><th style="min-width:130px">備註</th>
         <th style="min-width:170px">參賽場次</th><th style="width:60px"></th></tr></thead>
       <tbody></tbody></table></div></div>`);
@@ -1559,7 +1708,8 @@ function viewTeams(){
     const badges = joined.length
       ? joined.map(c=>`<span class="pill" style="margin:1px 3px 1px 0">${esc(c.short||c.name)}</span>`).join('')
       : '<span style="color:#8494a8;font-size:12.5px">未參加任何競賽</span>';
-    tr.innerHTML = `<td><button class="btn icon sm" data-d="-1">▲</button> <button class="btn icon sm" data-d="1">▼</button></td>
+    tr.dataset.sid = t.id;
+    tr.innerHTML = `<td style="white-space:nowrap"><span class="dragh" title="按住拖曳排序">⠿</span><button class="btn icon sm" data-d="-1">▲</button><button class="btn icon sm" data-d="1">▼</button></td>
       <td><input class="inp" data-f="name" value="${esc(t.name)}"></td>
       <td><input class="inp" data-f="captain" value="${esc(t.captain||'')}" placeholder="姓名"></td>
       <td><input class="inp" data-f="contact" value="${esc(t.contact||'')}" placeholder="分機 / 手機 / Line"></td>
@@ -1585,6 +1735,7 @@ function viewTeams(){
     S.data.teams.push({ id:uid('t'), name:'新隊伍 '+(S.data.teams.length+1), captain:'', contact:'', note:'' });
     markDirty(); render();
   };
+  makeSortable(tb, order=>{ S.data.teams = reorderBy(S.data.teams, order, x=>x.id); markDirty(); render(); });
   if(!S.data.teams.length) tb.appendChild(el('<tr><td colspan="7"><div class="empty-state"><b>還沒有隊伍</b>按右上角「新增隊伍」開始建立組別。</div></td></tr>'));
   frag.appendChild(p);
   return frag;
