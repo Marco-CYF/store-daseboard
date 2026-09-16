@@ -163,6 +163,24 @@ details.help ol{padding-left:20px;margin:6px 0}
 details.help li{margin-bottom:5px}
 code{background:#eef1f5;padding:1px 5px;border-radius:4px;font-size:12.5px}
 
+/* 頒獎進度 */
+.awprog{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line-2);background:#f7f9fc}
+.awprog .num{font-size:15px;font-weight:900}
+.awprog .track{flex:1;min-width:160px;height:9px;border-radius:999px;background:#e2e8f0;overflow:hidden}
+.awprog .fill{height:100%;background:var(--teal);border-radius:999px;transition:width .25s}
+.awprog .fill.all{background:var(--gold)}
+.awdone-btn{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);font-size:13px;font-weight:700;white-space:nowrap}
+.awdone-btn:hover{border-color:var(--teal);color:var(--teal)}
+.awdone-btn.on{background:var(--teal);border-color:var(--teal);color:#fff}
+tr.awdone > *{opacity:.42}
+tr.awdone{background:#f4f6f8!important}
+tr.awdone .rowhd{text-decoration:line-through;text-decoration-thickness:1.5px}
+tr.awdone .awdone-btn{opacity:1}
+tr.awnext > *{box-shadow:inset 0 2px 0 var(--coral),inset 0 -2px 0 var(--coral)}
+tr.awnext > *:first-child{box-shadow:inset 2px 0 0 var(--coral),inset 0 2px 0 var(--coral),inset 0 -2px 0 var(--coral)}
+tr.awnext > *:last-child{box-shadow:inset -2px 0 0 var(--coral),inset 0 2px 0 var(--coral),inset 0 -2px 0 var(--coral)}
+.nextflag{display:inline-block;background:var(--coral);color:#fff;font-size:11px;font-weight:900;padding:2px 7px;border-radius:999px;margin-right:6px;vertical-align:middle}
+
 /* 名次防呆標記 */
 .rmk{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 6px;
   border-radius:8px;font-size:15px;font-weight:900;flex:none;line-height:1}
@@ -402,7 +420,7 @@ function normalize(d){
   d.teams ||= []; d.competitions ||= []; d.log ||= [];
   d.photoGistId ||= ''; d.photoRev ??= 0;
   d.awards ||= [];
-  d.awards.forEach(a=>{ a.source ||= 'comp'; a.place ??= 1; a.presenter ??= ''; a.note ??= ''; a.title ??= ''; });
+  d.awards.forEach(a=>{ a.source ||= 'comp'; a.place ??= 1; a.presenter ??= ''; a.note ??= ''; a.title ??= ''; a.done ??= false; });
   const ids = new Set(d.teams.map(t=>t.id));
   d.competitions.forEach(c=>{
     // 舊版沒有名冊 → 預設全員參賽，並把當時的隊長資訊帶進來
@@ -1654,8 +1672,9 @@ function viewAwards(){
   const frag = document.createElement('div');
   const rows = S.data.awards;
 
-  const ties = rows.filter(a => awardResult(a).tie).length;
-  const pend = rows.filter(a => !awardResult(a).ready).length;
+  // 已頒發的獎項不再列入待處理警告
+  const ties = rows.filter(a => !a.done && awardResult(a).tie).length;
+  const pend = rows.filter(a => !a.done && !awardResult(a).ready).length;
   // 有破紀錄、但還沒建立對應獎項的項目
   const missingRec = brokenRecords().filter(b => !rows.some(a => a.source==='record' && a.eventId===b.ev.id));
 
@@ -1722,12 +1741,28 @@ function viewAwards(){
 
 /* 頒獎檢視：比照典禮流程表，同一位頒獎長官的獎項合併 */
 function awardsView(rows){
-  const p = el(`<div class="panel"><div class="scroller"><table class="board">
+  const done = rows.filter(a => a.done).length;
+  const pct = rows.length ? Math.round(done / rows.length * 100) : 0;
+  const nextId = (rows.find(a => !a.done) || {}).id;
+
+  const p = el(`<div class="panel">
+    <div class="awprog no-print">
+      <span class="num">頒獎進度 ${done} / ${rows.length}</span>
+      <span class="track"><span class="fill ${done===rows.length?'all':''}" style="width:${pct}%"></span></span>
+      <span style="font-size:12.5px;color:var(--ink-3)">${done===rows.length ? '全部頒發完畢 🎉' : `下一項：${esc((rows.find(a=>!a.done)||{}).title || '')}`}</span>
+      <button class="btn sm" id="awReset">全部重設為未頒發</button>
+    </div>
+    <div class="scroller"><table class="board">
     <thead><tr><th class="rowhd" style="min-width:230px">獎項別／梯次別</th>
       <th style="width:130px">獎次</th>
       <th style="min-width:170px">得獎隊伍</th><th style="min-width:200px">隊長／聯繫方式</th>
-      <th style="min-width:130px">頒獎長官</th></tr></thead>
+      <th style="min-width:130px">頒獎長官</th><th style="width:110px" class="no-print">頒獎狀態</th></tr></thead>
     <tbody></tbody></table></div></div>`);
+  p.querySelector('#awReset').onclick = ()=>{
+    if(!rows.some(a=>a.done)) { toast('目前沒有已頒發的獎項'); return; }
+    if(!confirm('把所有獎項標記回「未頒發」？')) return;
+    rows.forEach(a=> a.done = false); markDirty(); render();
+  };
   const tb = p.querySelector('tbody');
 
   // 連續同一位長官的列合併
@@ -1743,20 +1778,22 @@ function awardsView(rows){
     g.items.forEach((a, i)=>{
       const r = awardResult(a);
       const tr = document.createElement('tr');
-      tr.className = 'r-score ' + awardRowClass(a);
+      tr.className = 'r-score ' + awardRowClass(a) + (a.done ? ' awdone' : (a.id === nextId ? ' awnext' : ''));
       const names = r.teams.map(t=>esc(t.name)).join('、');
       let cell;
       if(r.tie) cell = `<span style="color:#c92f18;font-weight:900">${names}</span><span class="w" style="color:#c92f18">${a.source==='record'?'多隊同時破紀錄，待決定':'同分並列，待決定'}</span>`;
       else if(!r.ready) cell = `<span class="empty">${esc(r.why || '尚未產生')}</span>`;
       else cell = `<span style="font-weight:900">${names}</span>`;
       tr.innerHTML = `
-        <th class="rowhd" style="text-align:left">${esc(a.title)}
+        <th class="rowhd" style="text-align:left">${a.id===nextId&&!a.done?'<span class="nextflag">下一項</span>':''}${esc(a.title)}
           <span class="w">${esc(awardSourceText(a))}${a.note?' · '+esc(a.note):''}</span></th>
         <td class="mcell">${medalBadge(a)}</td>
         <td style="text-align:left">${cell}</td>
         <td style="text-align:left;font-size:14px;font-weight:400">${contactCell(a, r.teams)}</td>
-        ${ i===0 ? `<td rowspan="${g.items.length}" style="vertical-align:middle;font-weight:700">${esc(g.key||'—')}</td>` : '' }`;
-      if(r.tie) tr.style.background = '#fff5f3';
+        ${ i===0 ? `<td rowspan="${g.items.length}" style="vertical-align:middle;font-weight:700">${esc(g.key||'—')}</td>` : '' }
+        <td class="no-print"><button class="awdone-btn ${a.done?'on':''}">${a.done?'✓ 已頒發':'標記已頒'}</button></td>`;
+      tr.querySelector('.awdone-btn').onclick = ()=>{ a.done = !a.done; markDirty(); render(); };
+      if(r.tie && !a.done) tr.style.background = '#fff5f3';
       tb.appendChild(tr);
     });
   });
