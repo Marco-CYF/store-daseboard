@@ -325,6 +325,8 @@ function defaultData(){
 function normalize(d){
   d.teams ||= []; d.competitions ||= []; d.log ||= [];
   d.photoGistId ||= ''; d.photoRev ??= 0;
+  d.awards ||= [];
+  d.awards.forEach(a=>{ a.source ||= 'comp'; a.place ??= 1; a.presenter ??= ''; a.note ??= ''; a.title ??= ''; });
   const ids = new Set(d.teams.map(t=>t.id));
   d.competitions.forEach(c=>{
     // 舊版沒有名冊 → 預設全員參賽，並把當時的隊長資訊帶進來
@@ -446,6 +448,7 @@ const S = {
   dirty: false,
   tab: 'board',
   sortMode: 'custom', // custom | rank
+  awardMode: 'edit',  // edit | view
   remote: null,       // 偵測到的較新遠端資料
   polling: null,
   saving: false,
@@ -826,7 +829,8 @@ function renderTabs(){
   const host = $('#tabs'); host.innerHTML='';
   const items = [{id:'board', label:'總計分板'}]
     .concat(S.data.competitions.map(c=>({id:'c:'+c.id, label:c.short||c.name, cnt:c.events.length+' 項'})))
-    .concat([{id:'teams', label:'隊伍總名冊'},{id:'setup', label:'賽事設定'},{id:'cloud', label:'連線與備份'}]);
+    .concat([{id:'awards', label:'頒獎典禮', cnt:(S.data.awards||[]).length + ' 項'},
+             {id:'teams', label:'隊伍總名冊'},{id:'setup', label:'賽事設定'},{id:'cloud', label:'連線與備份'}]);
   items.forEach(it=>{
     const b = document.createElement('button');
     b.className='tab'; b.setAttribute('role','tab');
@@ -842,6 +846,7 @@ function render(){
   const v = $('#view'); v.innerHTML='';
   if(S.tab==='board') v.appendChild(viewBoard());
   else if(S.tab.startsWith('c:')) v.appendChild(viewComp(S.data.competitions.find(c=>c.id===S.tab.slice(2))));
+  else if(S.tab==='awards') v.appendChild(viewAwards());
   else if(S.tab==='teams') v.appendChild(viewTeams());
   else if(S.tab==='setup') v.appendChild(viewSetup());
   else if(S.tab==='cloud') v.appendChild(viewCloud());
@@ -1202,6 +1207,246 @@ function eventCard(c, ev, n){
   box.appendChild(wrap);
   box.appendChild(el(`<div class="rules">勾選「中止」代表該隊因故無法完賽，系統會以本項目最後一名（第 ${n} 名）的積分計點。</div>`));
   return box;
+}
+
+/* ============================================================
+   頒獎典禮：依來源競賽／項目與名次，自動帶出得獎隊伍
+   ============================================================ */
+const PLACE_NAME = { 1:'冠軍', 2:'亞軍', 3:'季軍' };
+const placeLabel = p => PLACE_NAME[p] || ('第 ' + p + ' 名');
+
+/** 回傳 { teams:[...], tie:bool, ready:bool, why:'' } */
+function awardResult(a){
+  if(a.source === 'manual'){
+    const t = teamById(a.teamId);
+    return { teams: t ? [t] : [], tie:false, ready: !!t, why: t ? '' : '尚未指定隊伍' };
+  }
+  const c = S.data.competitions.find(x => x.id === a.compId);
+  if(!c) return { teams:[], tie:false, ready:false, why:'來源競賽已被刪除' };
+
+  if(a.source === 'event'){
+    const ev = c.events.find(e => e.id === a.eventId);
+    if(!ev) return { teams:[], tie:false, ready:false, why:'來源項目已被刪除' };
+    const n = compSize(c);
+    const hit = rosterTeams(c).filter(t => effRank(ev, t.id, n) === Number(a.place));
+    return { teams:hit, tie:hit.length > 1, ready:hit.length > 0, why: hit.length ? '' : '這個項目還沒有這個名次' };
+  }
+  const place = compRanking(c);
+  const scored = rosterTeams(c).filter(t => compTotal(c, t.id) != null);
+  if(!scored.length) return { teams:[], tie:false, ready:false, why:'這場競賽還沒有任何成績' };
+  const hit = scored.filter(t => place[t.id] === Number(a.place));
+  return { teams:hit, tie:hit.length > 1, ready:hit.length > 0, why: hit.length ? '' : '尚未產生這個名次' };
+}
+/** 獎項對應的隊長與聯繫方式：項目層 → 該場名冊層 → 總名冊，取最貼近的一層 */
+function awardContact(a, team){
+  if(!team) return { captain:'', contact:'' };
+  const c = S.data.competitions.find(x => x.id === a.compId);
+  if(a.source !== 'manual' && c){
+    const ev = a.source === 'event' ? c.events.find(e => e.id === a.eventId) : null;
+    return { captain: contactChain(c, ev, team.id, 'captain'), contact: contactChain(c, ev, team.id, 'contact') };
+  }
+  return { captain: team.captain || '', contact: team.contact || '' };
+}
+/** 看起來像電話就做成可撥打連結 */
+function telLink(v){
+  const t = String(v||'').trim();
+  if(!t) return '<span class="empty">未填</span>';
+  const digits = t.replace(/[^\d+]/g, '');
+  if(digits.length < 3) return esc(t);
+  return `<a href="tel:${esc(digits)}" style="font-weight:700;white-space:nowrap">${esc(t)}</a>`;
+}
+function contactCell(a, teams){
+  if(!teams.length) return '<span class="empty">—</span>';
+  return teams.map(t=>{
+    const k = awardContact(a, t);
+    const who = k.captain ? esc(k.captain) : '<span class="empty">未填隊長</span>';
+    return `<div style="line-height:1.5${teams.length>1?';padding:2px 0':''}">${teams.length>1?`<span style="font-size:11.5px;color:var(--ink-3)">${esc(t.name)}　</span>`:''}<b>${who}</b>　${telLink(k.contact)}</div>`;
+  }).join('');
+}
+
+function awardSourceText(a){
+  if(a.source === 'manual') return '手動指定';
+  const c = S.data.competitions.find(x => x.id === a.compId);
+  if(!c) return '（來源已刪除）';
+  if(a.source === 'event'){
+    const ev = c.events.find(e => e.id === a.eventId);
+    return (c.short || c.name) + ' · ' + (ev ? ev.name : '（項目已刪除）');
+  }
+  return (c.short || c.name) + ' 總名次';
+}
+
+function viewAwards(){
+  const frag = document.createElement('div');
+  const rows = S.data.awards;
+
+  const ties = rows.filter(a => awardResult(a).tie).length;
+  const pend = rows.filter(a => !awardResult(a).ready).length;
+
+  const hd = el(`<div class="panel"><div class="panel-hd">
+      <h2>頒獎典禮</h2>
+      <span class="why">依來源競賽自動帶出得獎隊伍，順序可自由調整</span>
+      <div class="tools">
+        <button class="btn sm no-lock" id="awView">頒獎檢視</button>
+        <button class="btn sm no-lock" id="awEdit">編輯</button>
+        <button class="btn sm no-lock" id="awBig">大字模式</button>
+        <button class="btn sm no-lock" id="awPrint">列印</button>
+        <button class="btn sm" id="awSeed">一鍵帶入冠亞季軍</button>
+        <button class="btn sm primary" id="awAdd">新增獎項</button>
+      </div></div>
+      ${ties||pend ? `<div class="warnbar">${ties?`⚠ 有 ${ties} 個獎項同分並列，必須先決定歸屬　`:''}${pend?`· 有 ${pend} 個獎項尚未產生得獎隊伍`:''}</div>`:''}
+    </div>`);
+  hd.querySelector('#awBig').onclick = ()=> document.body.classList.toggle('big');
+  hd.querySelector('#awPrint').onclick = ()=> window.print();
+  hd.querySelector('#awView').onclick = ()=>{ S.awardMode='view'; render(); };
+  hd.querySelector('#awEdit').onclick = ()=>{ S.awardMode='edit'; render(); };
+  hd.querySelector(S.awardMode==='view' ? '#awView' : '#awEdit').classList.add('primary');
+  hd.querySelector('#awAdd').onclick = ()=>{
+    const c = S.data.competitions[0];
+    S.data.awards.push({ id:uid('a'), title:'新獎項', source:'comp', compId:c?c.id:'', eventId:'', place:1,
+                         presenter: rows.length ? rows[rows.length-1].presenter : '', note:'', teamId:'' });
+    markDirty(); render();
+  };
+  hd.querySelector('#awSeed').onclick = ()=>{
+    if(!confirm('會為每一場競賽各加入冠軍、亞軍、季軍三個獎項，加在現有清單後面。')) return;
+    S.data.competitions.forEach(c=>{
+      [1,2,3].forEach(pl=>{
+        S.data.awards.push({ id:uid('a'), title:`${c.name}_${placeLabel(pl)}隊伍`, source:'comp',
+                             compId:c.id, eventId:'', place:pl, presenter:'', note:'', teamId:'' });
+      });
+    });
+    markDirty(); render();
+  };
+  frag.appendChild(hd);
+
+  if(!rows.length){
+    frag.appendChild(el(`<div class="panel"><div class="empty-state"><b>還沒有獎項</b>
+      按「一鍵帶入冠亞季軍」快速建立，或用「新增獎項」自己排。</div></div>`));
+    return frag;
+  }
+
+  frag.appendChild(S.awardMode === 'view' ? awardsView(rows) : awardsEdit(rows));
+  return frag;
+}
+
+/* 頒獎檢視：比照典禮流程表，同一位頒獎長官的獎項合併 */
+function awardsView(rows){
+  const p = el(`<div class="panel"><div class="scroller"><table class="board">
+    <thead><tr><th class="rowhd" style="min-width:230px">獎項別／梯次別</th>
+      <th style="min-width:170px">得獎隊伍</th><th style="min-width:200px">隊長／聯繫方式</th>
+      <th style="min-width:130px">頒獎長官</th></tr></thead>
+    <tbody></tbody></table></div></div>`);
+  const tb = p.querySelector('tbody');
+
+  // 連續同一位長官的列合併
+  const groups = [];
+  rows.forEach(a=>{
+    const key = (a.presenter||'').trim();
+    const last = groups[groups.length-1];
+    if(last && last.key === key) last.items.push(a);
+    else groups.push({ key, items:[a] });
+  });
+
+  groups.forEach(g=>{
+    g.items.forEach((a, i)=>{
+      const r = awardResult(a);
+      const tr = document.createElement('tr');
+      tr.className = 'r-score';
+      const names = r.teams.map(t=>esc(t.name)).join('、');
+      let cell;
+      if(r.tie) cell = `<span style="color:#c92f18;font-weight:900">${names}</span><span class="w" style="color:#c92f18">同分並列，待決定</span>`;
+      else if(!r.ready) cell = `<span class="empty">${esc(r.why || '尚未產生')}</span>`;
+      else cell = `<span style="font-weight:900">${names}</span>`;
+      tr.innerHTML = `
+        <th class="rowhd" style="text-align:left">${esc(a.title)}
+          <span class="w">${esc(awardSourceText(a))} · ${placeLabel(a.place)}${a.note?' · '+esc(a.note):''}</span></th>
+        <td style="text-align:left">${cell}</td>
+        <td style="text-align:left;font-size:14px;font-weight:400">${contactCell(a, r.teams)}</td>
+        ${ i===0 ? `<td rowspan="${g.items.length}" style="vertical-align:middle;font-weight:700">${esc(g.key||'—')}</td>` : '' }`;
+      if(r.tie) tr.style.background = '#fff5f3';
+      tb.appendChild(tr);
+    });
+  });
+  return p;
+}
+
+/* 編輯模式 */
+function awardsEdit(rows){
+  const p = el(`<div class="panel"><div class="scroller"><table class="grid">
+    <thead><tr><th style="width:56px">順序</th><th style="min-width:210px">獎項名稱</th>
+      <th style="min-width:200px">來源</th><th style="width:110px">名次</th>
+      <th style="min-width:150px">得獎隊伍</th><th style="min-width:190px">隊長／聯繫方式</th><th style="min-width:130px">頒獎長官</th>
+      <th style="min-width:110px">備註</th><th style="width:60px"></th></tr></thead>
+    <tbody></tbody></table></div></div>`);
+  const tb = p.querySelector('tbody');
+
+  rows.forEach((a, i)=>{
+    const r = awardResult(a);
+    const tr = document.createElement('tr');
+    if(r.tie) tr.style.background = '#fff5f3';
+
+    let srcOpts = '';
+    S.data.competitions.forEach(c=>{
+      srcOpts += `<option value="comp:${c.id}" ${a.source==='comp'&&a.compId===c.id?'selected':''}>${esc(c.short||c.name)}　總名次</option>`;
+      c.events.forEach(ev=>{
+        srcOpts += `<option value="event:${c.id}:${ev.id}" ${a.source==='event'&&a.eventId===ev.id?'selected':''}>${esc(c.short||c.name)} · ${esc(ev.name)}</option>`;
+      });
+    });
+    srcOpts += `<option value="manual" ${a.source==='manual'?'selected':''}>手動指定隊伍</option>`;
+
+    let plOpts = '';
+    for(let k=1;k<=8;k++) plOpts += `<option value="${k}" ${Number(a.place)===k?'selected':''}>${placeLabel(k)}</option>`;
+
+    let teamOpts = '<option value="">—</option>';
+    S.data.teams.forEach(t=> teamOpts += `<option value="${t.id}" ${a.teamId===t.id?'selected':''}>${esc(t.name)}</option>`);
+
+    const winner = a.source==='manual'
+      ? `<select class="inp" data-f="teamId">${teamOpts}</select>`
+      : (r.tie
+          ? `<span style="color:#c92f18;font-weight:900">${r.teams.map(t=>esc(t.name)).join('、')}</span>
+             <span style="display:block;font-size:11.5px;color:#c92f18;font-weight:700">同分並列，請先決定</span>`
+          : (r.ready ? `<b>${esc(r.teams[0].name)}</b>` : `<span style="color:var(--ink-3);font-size:12.5px">${esc(r.why)}</span>`));
+
+    tr.innerHTML = `
+      <td><button class="btn icon sm" data-d="-1">▲</button> <button class="btn icon sm" data-d="1">▼</button></td>
+      <td><input class="inp" data-f="title" value="${esc(a.title)}" placeholder="例：瑞昱趣味競賽_就是灌籃高手"></td>
+      <td><select class="inp" data-f="src">${srcOpts}</select></td>
+      <td><select class="inp" data-f="place" ${a.source==='manual'?'disabled':''}>${plOpts}</select></td>
+      <td>${winner}</td>
+      <td style="font-size:13px">${contactCell(a, a.source==='manual' ? (teamById(a.teamId)?[teamById(a.teamId)]:[]) : r.teams)}</td>
+      <td><input class="inp" data-f="presenter" value="${esc(a.presenter||'')}" placeholder="頒獎長官"></td>
+      <td><input class="inp" data-f="note" value="${esc(a.note||'')}" placeholder="例：(3)"></td>
+      <td><button class="btn sm danger" data-x="1">刪除</button></td>`;
+
+    tr.querySelectorAll('[data-d]').forEach(b=> b.onclick = ()=>{
+      const j = i + Number(b.dataset.d);
+      if(j<0 || j>=rows.length) return;
+      [rows[i], rows[j]] = [rows[j], rows[i]];
+      markDirty(); render();
+    });
+    tr.querySelector('[data-f=src]').onchange = e=>{
+      const v = e.target.value;
+      if(v === 'manual'){ a.source='manual'; }
+      else if(v.startsWith('comp:')){ a.source='comp'; a.compId=v.slice(5); a.eventId=''; }
+      else { const [,cid,eid] = v.split(':'); a.source='event'; a.compId=cid; a.eventId=eid; }
+      markDirty(); render();
+    };
+    tr.querySelector('[data-f=place]').onchange = e=>{ a.place = Number(e.target.value); markDirty(); render(); };
+    const ts = tr.querySelector('[data-f=teamId]');
+    if(ts) ts.onchange = e=>{ a.teamId = e.target.value; markDirty(); render(); };
+    ['title','presenter','note'].forEach(f=>{
+      tr.querySelector(`[data-f=${f}]`).oninput = e=>{ a[f] = e.target.value; markDirty(); };
+    });
+    tr.querySelector('[data-x]').onclick = ()=>{
+      if(!confirm(`刪除獎項「${a.title}」？`)) return;
+      S.data.awards = rows.filter(x => x.id !== a.id); markDirty(); render();
+    };
+    tb.appendChild(tr);
+  });
+
+  p.appendChild(el(`<div class="rules">「來源」可選整場競賽的總名次，也可指定單一項目的名次；破紀錄之類沒有固定來源的獎項選「手動指定隊伍」。
+    名次一改，得獎隊伍立刻跟著換。同分並列的獎項會整列標紅，頒獎前務必先決定歸屬。
+    聯繫方式取自該場競賽的隊長資料（項目層 → 本場名冊 → 總名冊），手機板上點一下號碼就能直接撥打。</div>`));
+  return p;
 }
 
 /* ---------- 手寫板照片面板 ---------- */
