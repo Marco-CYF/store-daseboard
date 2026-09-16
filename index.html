@@ -163,6 +163,17 @@ details.help ol{padding-left:20px;margin:6px 0}
 details.help li{margin-bottom:5px}
 code{background:#eef1f5;padding:1px 5px;border-radius:4px;font-size:12.5px}
 
+/* 歷年紀錄比較 */
+.recbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 16px;background:#f2f7ff;border-bottom:1px solid #cfe0f7;font-size:13px}
+.recbar b{font-weight:900}
+.recbar .old{color:var(--blue);font-weight:700}
+.recbar.broke{background:#fff8e6;border-bottom-color:#f0d79a}
+.recbar.broke .tag{background:var(--gold);color:#fff;padding:3px 10px;border-radius:999px;font-weight:900;font-size:12.5px}
+.recbar .none{color:var(--ink-3)}
+.perf{width:110px;font-weight:700;text-align:center}
+.perf.best{border-color:var(--gold);background:#fffaf0}
+.brk{display:inline-block;margin-left:6px;font-size:11.5px;font-weight:900;color:var(--gold)}
+
 /* 拖曳排序 */
 .dragh{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;color:var(--ink-3);
   font-size:15px;line-height:1;padding:5px 7px;border-radius:6px}
@@ -180,10 +191,9 @@ tr.dragging td,tr.dragging th{opacity:.92}
 .tab.drop .cur{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tab.drop .car{font-size:10px;opacity:.6;flex:none}
 .tab.drop[aria-expanded="true"]{color:var(--coral)}
-.menu-pop{position:absolute;top:calc(100% - 1px);left:0;z-index:60;background:var(--card);border:1px solid var(--line);
+.menu-pop{position:fixed;z-index:80;background:var(--card);border:1px solid var(--line);
   border-radius:10px;box-shadow:0 12px 32px -8px rgba(15,26,42,.28);min-width:240px;max-height:min(62vh,420px);
   overflow:auto;padding:6px}
-.menu-pop.right{left:auto;right:0}
 .menu-pop .sec{padding:7px 10px 4px;font-size:11.5px;font-weight:700;color:var(--ink-3);letter-spacing:.04em}
 .menu-pop button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 10px;border-radius:7px;
   font-size:14px;font-weight:600;color:var(--ink)}
@@ -363,7 +373,11 @@ function normalize(d){
     c.roster = c.roster.filter(r=>ids.has(r.teamId));
     c.roster.forEach(r=>{ r.captain ??= ''; r.contact ??= ''; r.note ??= ''; });
     c.events ||= []; c.mode ||= 'weighted'; c.weight ??= 1;
-    c.events.forEach(e=>{ e.entries ||= {}; e.scores ||= [100,85,70]; e.tail ??= 0; e.weight ??= 100; });
+    c.events.forEach(e=>{
+      e.entries ||= {}; e.scores ||= [100,85,70]; e.tail ??= 0; e.weight ??= 100;
+      e.record ||= { on:false, better:'min', value:'', holder:'', year:'', unit:'秒' };
+      Object.values(e.entries).forEach(en=>{ en.perf ??= ''; });
+    });
     if(c.tieBreak===undefined) c.tieBreak = null;
     if(c.tieBreak===null && c.events.length>1 && /鐵人|三項/.test(c.name)){
       const relay = c.events.find(e=>/接力/.test(e.name));
@@ -485,6 +499,56 @@ const S = {
   lastErr: '',
 };
 
+/* ---------- 歷年紀錄比較 ---------- */
+/** 接受 0'41"79、1'09"58、41"79、1:09.58、41.79、41；空白 null、格式錯 NaN */
+function parsePerf(str){
+  if(str == null) return null;
+  let v = String(str).trim();
+  if(!v) return null;
+  v = v.replace(/[’‘´`′]/g, "'").replace(/[”“″]/g, '"').replace(/\s+/g, '');
+  let m;
+  if((m = v.match(/^(\d+)['：:](\d{1,2})(?:["'.,](\d{1,3}))?$/))) return +m[1]*60 + +m[2] + (m[3] ? +('0.'+m[3]) : 0);
+  if((m = v.match(/^(\d+)"(\d{1,3})$/)))                       return +m[1] + +('0.'+m[2]);
+  if((m = v.match(/^(\d+)(?:[.,](\d{1,3}))?$/)))               return +m[1] + (m[2] ? +('0.'+m[2]) : 0);
+  return NaN;
+}
+/** 秒數 → 0'41"79；非計時單位就原樣顯示數字 */
+function fmtPerf(v, ev){
+  if(v == null || isNaN(v)) return '';
+  if(ev && ev.record && ev.record.better === 'max') return String(v);
+  const m = Math.floor(v/60);
+  return m + "'" + (v - m*60).toFixed(2).padStart(5,'0').replace('.', '"');
+}
+/** 這個項目的破紀錄狀況 */
+function recordState(ev, c){
+  const r = ev.record || {};
+  const out = { on:!!r.on, rec:parsePerf(r.value), better:r.better||'min', best:null, bestTeams:[], broke:[], diff:0 };
+  if(!out.on) return out;
+  const teams = c ? rosterTeams(c) : S.data.teams;
+  const rows = teams.map(t=>({ t, v: parsePerf((ev.entries[t.id]||{}).perf) }))
+                    .filter(x => x.v != null && !isNaN(x.v));
+  if(!rows.length) return out;
+  const cmp = out.better === 'max' ? (a,b)=> b.v - a.v : (a,b)=> a.v - b.v;
+  rows.sort(cmp);
+  out.best = rows[0].v;
+  out.bestTeams = rows.filter(x => x.v === out.best).map(x => x.t);
+  if(out.rec != null && !isNaN(out.rec)){
+    const beats = v => out.better === 'max' ? v > out.rec : v < out.rec;
+    out.broke = rows.filter(x => beats(x.v)).map(x => x.t);
+    if(out.broke.length) out.diff = Math.abs(out.best - out.rec);
+  }
+  return out;
+}
+/** 全場破紀錄清單，供頒獎典禮使用 */
+function brokenRecords(){
+  const list = [];
+  S.data.competitions.forEach(c => c.events.forEach(ev=>{
+    const st = recordState(ev, c);
+    if(st.on && st.broke.length) list.push({ c, ev, st });
+  }));
+  return list;
+}
+
 /* ---------- 計分核心 ---------- */
 function scoreOf(ev, rank, teamCount){
   if(rank == null) return null;
@@ -507,7 +571,7 @@ function contactChain(c, ev, teamId, field){
   return (teamById(teamId)||{})[field] || '';
 }
 
-function entryOf(ev, teamId){ return (ev.entries[teamId] ||= { rank:null, dnf:false, captain:'', contact:'', note:'' }); }
+function entryOf(ev, teamId){ return (ev.entries[teamId] ||= { rank:null, dnf:false, captain:'', contact:'', note:'', perf:'' }); }
 function effRank(ev, teamId, teamCount){
   const en = ev.entries[teamId];
   if(!en) return null;
@@ -944,7 +1008,9 @@ function reorderBy(list, order, keyOf){
   return out;
 }
 
-/** 下拉式分頁：label 是目前所在項目，點開才列出全部 */
+/** 下拉式分頁：label 是目前所在項目，點開才列出全部。
+ *  分頁列本身會橫向捲動（overflow 會連帶裁掉垂直方向），
+ *  所以選單掛在 body 上用 fixed 定位，才不會被裁掉。 */
 function dropTab(label, active, items, alignRight){
   const wrap = document.createElement('div'); wrap.className='menu';
   const btn = document.createElement('button');
@@ -952,36 +1018,57 @@ function dropTab(label, active, items, alignRight){
   btn.setAttribute('aria-selected', String(!!active));
   btn.setAttribute('aria-expanded','false');
   btn.innerHTML = `<span class="cur">${esc(label)}</span><span class="car">▼</span>`;
-  const pop = document.createElement('div');
-  pop.className = 'menu-pop' + (alignRight?' right':'');
-  pop.hidden = true;
-  items.forEach(it=>{
-    if(it.sec){ pop.appendChild(el(`<div class="sec">${esc(it.sec)}</div>`)); return; }
-    const b = document.createElement('button');
-    b.setAttribute('aria-current', String(S.tab === it.id));
-    b.innerHTML = esc(it.label) + (it.sub?`<span class="sub">${esc(it.sub)}</span>`:'');
-    b.onclick = ()=>{ closeMenus(); goTab(it.id); };
-    pop.appendChild(b);
-  });
+
+  const build = ()=>{
+    const pop = document.createElement('div');
+    pop.className = 'menu-pop';
+    items.forEach(it=>{
+      if(it.sec){ pop.appendChild(el(`<div class="sec">${esc(it.sec)}</div>`)); return; }
+      const b = document.createElement('button');
+      b.setAttribute('aria-current', String(S.tab === it.id));
+      b.innerHTML = esc(it.label) + (it.sub?`<span class="sub">${esc(it.sub)}</span>`:'');
+      b.onclick = ev=>{ ev.stopPropagation(); closeMenus(); goTab(it.id); };
+      pop.appendChild(b);
+    });
+    pop.onclick = ev=> ev.stopPropagation();
+    document.body.appendChild(pop);
+
+    // 對齊按鈕，並確保不會超出畫面
+    const r = btn.getBoundingClientRect();
+    pop.style.top = Math.round(r.bottom + 4) + 'px';
+    const w = pop.offsetWidth || 240;
+    let left = alignRight ? r.right - w : r.left;
+    left = Math.min(Math.max(8, left), window.innerWidth - w - 8);
+    pop.style.left = Math.round(left) + 'px';
+    pop.dataset.owner = '1';
+    return pop;
+  };
+
   btn.onclick = e=>{
     e.stopPropagation();
-    const open = pop.hidden;
+    const wasOpen = btn.getAttribute('aria-expanded') === 'true';
     closeMenus();
-    if(open){ pop.hidden = false; btn.setAttribute('aria-expanded','true'); }
+    if(!wasOpen){
+      const pop = build();
+      btn.setAttribute('aria-expanded','true');
+      pop._btn = btn;
+    }
   };
-  wrap.appendChild(btn); wrap.appendChild(pop);
+  wrap.appendChild(btn);
   return wrap;
 }
 function closeMenus(){
   document.querySelectorAll('.menu-pop').forEach(p=>{
-    p.hidden = true;
-    const b = p.previousElementSibling;
-    if(b) b.setAttribute('aria-expanded','false');
+    if(p._btn) p._btn.setAttribute('aria-expanded','false');
+    p.remove();
   });
+  document.querySelectorAll('.tab.drop[aria-expanded="true"]').forEach(b=> b.setAttribute('aria-expanded','false'));
 }
 function goTab(id){ S.tab = id; render(); window.scrollTo({top:0}); }
 document.addEventListener('click', closeMenus);
 document.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeMenus(); });
+window.addEventListener('resize', closeMenus);
+window.addEventListener('scroll', closeMenus, true);
 
 function render(){
   if(!S.data){ return; }
@@ -1316,9 +1403,27 @@ function eventCard(c, ev, n){
   });
   box.appendChild(q);
 
+  // 歷年紀錄橫幅
+  const rs = recordState(ev, c);
+  if(rs.on){
+    const unit = ev.record.unit || '秒';
+    const recTxt = rs.rec==null || isNaN(rs.rec)
+      ? '<span class="none">尚未填入歷年紀錄</span>'
+      : `<span class="old">${esc(fmtPerf(rs.rec, ev))}</span>${ev.record.holder?`　保持人 ${esc(ev.record.holder)}`:''}${ev.record.year?`（${esc(ev.record.year)}）`:''}`;
+    const bar = el(`<div class="recbar ${rs.broke.length?'broke':''}">
+        <b>歷年紀錄</b>${recTxt}
+        ${ rs.best!=null ? `　｜　<b>本次最佳</b> ${esc(fmtPerf(rs.best, ev))}　${rs.bestTeams.map(t=>esc(t.name)).join('、')}` : '　｜　<span class="none">本次尚未登錄成績</span>' }
+        ${ rs.broke.length
+            ? `<span class="tag">🏆 破紀錄</span><span style="font-weight:700">${rs.broke.map(t=>esc(t.name)).join('、')}　${rs.better==='max'?'超出':'快了'} ${rs.diff.toFixed(2)} ${esc(unit)}</span>`
+            : (rs.rec!=null && !isNaN(rs.rec) && rs.best!=null ? '<span class="none">本次未破紀錄</span>' : '') }
+      </div>`);
+    box.appendChild(bar);
+  }
+
   // 明細表
   const wrap = el(`<div class="scroller"><table class="grid">
     <thead><tr><th style="min-width:150px">組別</th><th style="width:170px">名次</th><th style="width:96px">積分</th>
+      ${rs.on?'<th style="width:130px">本次成績</th>':''}
       <th style="min-width:110px">本項隊長</th><th style="min-width:140px">聯繫方式</th><th style="min-width:130px">備註</th></tr></thead>
     <tbody></tbody></table></div>`);
   const tb = wrap.querySelector('tbody');
@@ -1340,6 +1445,9 @@ function eventCard(c, ev, n){
         <label class="chk"><input type="checkbox" data-f="dnf" ${en.dnf?'checked':''}> 中止</label>
       </div></td>
       <td><span class="scorebox ${sc?'':'zero'}">${sc==null?'—':sc}</span></td>
+      ${rs.on ? `<td><input class="inp perf ${rs.best!=null && parsePerf(en.perf)===rs.best ? 'best':''} ${en.perf && isNaN(parsePerf(en.perf))?'bad':''}"
+            data-f="perf" value="${esc(en.perf||'')}" placeholder="${ev.record.better==='max'?'例 128':"0'41\"79"}">
+          ${ rs.broke.some(x=>x.id===t.id) ? '<span class="brk">🏆 破紀錄</span>' : '' }</td>` : ''}
       <td><input class="inp" data-f="captain" value="${esc(en.captain||'')}" placeholder="${esc(ri.captain||t.captain||'同本場隊長')}"></td>
       <td><input class="inp" data-f="contact" value="${esc(en.contact||'')}" placeholder="${esc(ri.contact||t.contact||'分機 / 手機')}"></td>
       <td><input class="inp" data-f="note" value="${esc(en.note||'')}" placeholder="成績、備註"></td>`;
@@ -1348,6 +1456,8 @@ function eventCard(c, ev, n){
     ['captain','contact','note'].forEach(f=>{
       tr.querySelector(`[data-f=${f}]`).oninput = e=>{ en[f] = e.target.value; markDirty(); };
     });
+    const pf = tr.querySelector('[data-f=perf]');
+    if(pf) pf.onchange = e=>{ en.perf = e.target.value.trim(); markDirty(); render(); };
     tb.appendChild(tr);
   });
   box.appendChild(wrap);
@@ -1376,6 +1486,14 @@ function awardResult(a){
     const n = compSize(c);
     const hit = rosterTeams(c).filter(t => effRank(ev, t.id, n) === Number(a.place));
     return { teams:hit, tie:hit.length > 1, ready:hit.length > 0, why: hit.length ? '' : '這個項目還沒有這個名次' };
+  }
+  if(a.source === 'record'){
+    const ev = c.events.find(e => e.id === a.eventId);
+    if(!ev) return { teams:[], tie:false, ready:false, why:'來源項目已被刪除' };
+    const st = recordState(ev, c);
+    if(!st.on) return { teams:[], tie:false, ready:false, why:'這個項目沒有啟用紀錄比較' };
+    if(!st.broke.length) return { teams:[], tie:false, ready:false, why:'本次無人破紀錄，本獎項從缺' };
+    return { teams:st.broke, tie:st.broke.length > 1, ready:true, why:'' };
   }
   const place = compRanking(c);
   const scored = rosterTeams(c).filter(t => compTotal(c, t.id) != null);
@@ -1414,9 +1532,10 @@ function awardSourceText(a){
   if(a.source === 'manual') return '手動指定';
   const c = S.data.competitions.find(x => x.id === a.compId);
   if(!c) return '（來源已刪除）';
-  if(a.source === 'event'){
+  if(a.source === 'event' || a.source === 'record'){
     const ev = c.events.find(e => e.id === a.eventId);
-    return (c.short || c.name) + ' · ' + (ev ? ev.name : '（項目已刪除）');
+    const nm = (c.short || c.name) + ' · ' + (ev ? ev.name : '（項目已刪除）');
+    return a.source === 'record' ? nm + '　破紀錄' : nm;
   }
   return (c.short || c.name) + ' 總名次';
 }
@@ -1427,6 +1546,8 @@ function viewAwards(){
 
   const ties = rows.filter(a => awardResult(a).tie).length;
   const pend = rows.filter(a => !awardResult(a).ready).length;
+  // 有破紀錄、但還沒建立對應獎項的項目
+  const missingRec = brokenRecords().filter(b => !rows.some(a => a.source==='record' && a.eventId===b.ev.id));
 
   const hd = el(`<div class="panel"><div class="panel-hd">
       <h2>頒獎典禮</h2>
@@ -1439,8 +1560,23 @@ function viewAwards(){
         <button class="btn sm" id="awSeed">一鍵帶入冠亞季軍</button>
         <button class="btn sm primary" id="awAdd">新增獎項</button>
       </div></div>
-      ${ties||pend ? `<div class="warnbar">${ties?`⚠ 有 ${ties} 個獎項同分並列，必須先決定歸屬　`:''}${pend?`· 有 ${pend} 個獎項尚未產生得獎隊伍`:''}</div>`:''}
+      ${ties||pend ? `<div class="warnbar">${ties?`⚠ 有 ${ties} 個獎項出現並列，必須先決定歸屬　`:''}${pend?`· 有 ${pend} 個獎項尚未產生得獎隊伍`:''}</div>`:''}
+      ${missingRec.length ? `<div class="recbar broke" style="border-top:1px solid #f0d79a">
+          <span class="tag">🏆 破紀錄</span>
+          <b>${missingRec.length} 個項目本次破紀錄，尚未建立破紀錄獎項</b>
+          <span>${missingRec.map(b=>esc((b.c.short||b.c.name)+' · '+b.ev.name+'（'+b.st.broke.map(t=>t.name).join('、')+'）')).join('　｜　')}</span>
+          <button class="btn sm primary" id="awRec" style="margin-left:auto">一鍵新增這 ${missingRec.length} 個獎項</button>
+        </div>`:''}
     </div>`);
+  const recBtn = hd.querySelector('#awRec');
+  if(recBtn) recBtn.onclick = ()=>{
+    missingRec.forEach(b=>{
+      S.data.awards.push({ id:uid('a'), title:`${b.c.short||b.c.name}_${b.ev.name}　破紀錄`, source:'record',
+                           compId:b.c.id, eventId:b.ev.id, place:1, presenter:'', note:'', teamId:'' });
+    });
+    markDirty(); render();
+    toast(`已新增 ${missingRec.length} 個破紀錄獎項`,'good');
+  };
   hd.querySelector('#awBig').onclick = ()=> document.body.classList.toggle('big');
   hd.querySelector('#awPrint').onclick = ()=> window.print();
   hd.querySelector('#awView').onclick = ()=>{ S.awardMode='view'; render(); };
@@ -1499,12 +1635,12 @@ function awardsView(rows){
       tr.className = 'r-score';
       const names = r.teams.map(t=>esc(t.name)).join('、');
       let cell;
-      if(r.tie) cell = `<span style="color:#c92f18;font-weight:900">${names}</span><span class="w" style="color:#c92f18">同分並列，待決定</span>`;
+      if(r.tie) cell = `<span style="color:#c92f18;font-weight:900">${names}</span><span class="w" style="color:#c92f18">${a.source==='record'?'多隊同時破紀錄，待決定':'同分並列，待決定'}</span>`;
       else if(!r.ready) cell = `<span class="empty">${esc(r.why || '尚未產生')}</span>`;
       else cell = `<span style="font-weight:900">${names}</span>`;
       tr.innerHTML = `
         <th class="rowhd" style="text-align:left">${esc(a.title)}
-          <span class="w">${esc(awardSourceText(a))} · ${placeLabel(a.place)}${a.note?' · '+esc(a.note):''}</span></th>
+          <span class="w">${esc(awardSourceText(a))}${a.source==='record'?'':' · '+placeLabel(a.place)}${a.note?' · '+esc(a.note):''}</span></th>
         <td style="text-align:left">${cell}</td>
         <td style="text-align:left;font-size:14px;font-weight:400">${contactCell(a, r.teams)}</td>
         ${ i===0 ? `<td rowspan="${g.items.length}" style="vertical-align:middle;font-weight:700">${esc(g.key||'—')}</td>` : '' }`;
@@ -1537,6 +1673,10 @@ function awardsEdit(rows){
         srcOpts += `<option value="event:${c.id}:${ev.id}" ${a.source==='event'&&a.eventId===ev.id?'selected':''}>${esc(c.short||c.name)} · ${esc(ev.name)}</option>`;
       });
     });
+    S.data.competitions.forEach(c=> c.events.forEach(ev=>{
+      if(ev.record && ev.record.on)
+        srcOpts += `<option value="record:${c.id}:${ev.id}" ${a.source==='record'&&a.eventId===ev.id?'selected':''}>🏆 ${esc(c.short||c.name)} · ${esc(ev.name)}　破紀錄</option>`;
+    }));
     srcOpts += `<option value="manual" ${a.source==='manual'?'selected':''}>手動指定隊伍</option>`;
 
     let plOpts = '';
@@ -1549,7 +1689,7 @@ function awardsEdit(rows){
       ? `<select class="inp" data-f="teamId">${teamOpts}</select>`
       : (r.tie
           ? `<span style="color:#c92f18;font-weight:900">${r.teams.map(t=>esc(t.name)).join('、')}</span>
-             <span style="display:block;font-size:11.5px;color:#c92f18;font-weight:700">同分並列，請先決定</span>`
+             <span style="display:block;font-size:11.5px;color:#c92f18;font-weight:700">${a.source==='record'?'多隊同時破紀錄，請先決定':'同分並列，請先決定'}</span>`
           : (r.ready ? `<b>${esc(r.teams[0].name)}</b>` : `<span style="color:var(--ink-3);font-size:12.5px">${esc(r.why)}</span>`));
 
     tr.dataset.sid = a.id;
@@ -1574,9 +1714,11 @@ function awardsEdit(rows){
       const v = e.target.value;
       if(v === 'manual'){ a.source='manual'; }
       else if(v.startsWith('comp:')){ a.source='comp'; a.compId=v.slice(5); a.eventId=''; }
+      else if(v.startsWith('record:')){ const [,cid,eid] = v.split(':'); a.source='record'; a.compId=cid; a.eventId=eid; }
       else { const [,cid,eid] = v.split(':'); a.source='event'; a.compId=cid; a.eventId=eid; }
       markDirty(); render();
     };
+    if(a.source==='record'){ const ps = tr.querySelector('[data-f=place]'); if(ps) ps.disabled = true; }
     tr.querySelector('[data-f=place]').onchange = e=>{ a.place = Number(e.target.value); markDirty(); render(); };
     const ts = tr.querySelector('[data-f=teamId]');
     if(ts) ts.onchange = e=>{ a.teamId = e.target.value; markDirty(); render(); };
@@ -1813,6 +1955,22 @@ function viewSetup(){
             <div class="note">依序為第 1、2、3… 名，用逗號分隔</div></div>
           <div class="field"><label>其餘名次積分</label><input class="inp" type="number" data-f="tail" value="${ev.tail}">
             <div class="note">超出積分表的名次一律給這個分數</div></div>
+          <div class="field" style="grid-column:1/-1;border-top:1px dashed var(--line);padding-top:12px">
+            <label class="chk" style="font-size:14px"><input type="checkbox" data-f="recOn" ${ev.record.on?'checked':''}>
+              <b>啟用歷年成績比較（破紀錄判定）</b></label>
+            <div class="note">開啟後，這個項目的成績表會多一欄「本次成績」，系統自動和歷年紀錄比對</div></div>
+          ${ev.record.on ? `
+          <div class="field"><label>歷年紀錄成績</label><input class="inp" data-f="recValue" value="${esc(ev.record.value||'')}" placeholder="0'41&quot;79 或 41.79">
+            <div class="note">可填 0'41&quot;79、41&quot;79、41.79、1:09.58</div></div>
+          <div class="field"><label>紀錄保持人／隊伍</label><input class="inp" data-f="recHolder" value="${esc(ev.record.holder||'')}" placeholder="例：RTK_Fatout"></div>
+          <div class="field"><label>創紀錄年份</label><input class="inp" data-f="recYear" value="${esc(ev.record.year||'')}" placeholder="例：2024"></div>
+          <div class="field"><label>判定方式</label>
+            <select class="inp" data-f="recBetter">
+              <option value="min" ${ev.record.better!=='max'?'selected':''}>越小越好（計時）</option>
+              <option value="max" ${ev.record.better==='max'?'selected':''}>越大越好（計次、距離）</option>
+            </select></div>
+          <div class="field"><label>單位</label><input class="inp" data-f="recUnit" value="${esc(ev.record.unit||'秒')}" placeholder="秒 / 次 / 公尺"></div>
+          ` : ''}
         </div></div></div>`);
       box.querySelectorAll('[data-f]').forEach(inp=>{
         const f = inp.dataset.f;
@@ -1820,6 +1978,12 @@ function viewSetup(){
           const v = e.target.value;
           if(f==='scores') ev.scores = v.split(/[,，\s]+/).filter(Boolean).map(Number).filter(x=>!isNaN(x));
           else if(f==='weight'||f==='tail') ev[f] = Number(v)||0;
+          else if(f==='recOn'){ ev.record.on = e.target.checked; }
+          else if(f==='recValue') ev.record.value = v;
+          else if(f==='recHolder') ev.record.holder = v;
+          else if(f==='recYear') ev.record.year = v;
+          else if(f==='recBetter') ev.record.better = v;
+          else if(f==='recUnit') ev.record.unit = v;
           else ev[f] = v;
           markDirty(); render();
         };
