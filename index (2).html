@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>家庭日競賽計分總表</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#eef1f5; --card:#ffffff; --ink:#0f1a2a; --ink-2:#4a5a70; --ink-3:#8494a8;
+  --line:#d3dae4; --line-2:#e6eaf0;
+  --coral:#e63b22; --coral-soft:#fde8e4;
+  --teal:#0f8a7a; --teal-soft:#e0f4f0;
+  --gold:#d9930d; --gold-soft:#fdf1d8;
+  --blue:#1f4e9c; --blue-soft:#e6edf9;
+  --shadow:0 1px 2px rgba(15,26,42,.08), 0 8px 24px -12px rgba(15,26,42,.18);
+  --r:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"Noto Sans TC",-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+  font-size:15px; line-height:1.55; -webkit-text-size-adjust:100%;
+  font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+a{color:var(--blue)}
+:focus-visible{outline:3px solid #1f4e9c;outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- top bar ---------- */
+.top{position:sticky;top:0;z-index:40;background:var(--card);border-bottom:1px solid var(--line)}
+.top-in{max-width:1500px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+.brand h1{margin:0;font-size:19px;font-weight:900;letter-spacing:-.02em;white-space:nowrap}
+.brand .sub{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sync{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.stamp{text-align:right;line-height:1.3}
+.stamp b{display:block;font-size:13px;font-weight:700}
+.stamp span{font-size:11.5px;color:var(--ink-3)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--teal);flex:none;box-shadow:0 0 0 3px var(--teal-soft)}
+.dot.warn{background:var(--gold);box-shadow:0 0 0 3px var(--gold-soft)}
+.dot.off{background:var(--ink-3);box-shadow:0 0 0 3px #e3e8ee}
+.dot.bad{background:var(--coral);box-shadow:0 0 0 3px var(--coral-soft)}
+
+.btn{padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);font-weight:700;font-size:14px}
+.btn:hover{border-color:var(--ink-3)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--coral);border-color:var(--coral);color:#fff}
+.btn.primary:hover{background:#c92f18}
+.btn.ghost{border-style:dashed;color:var(--ink-2)}
+.btn.sm{padding:5px 10px;font-size:13px;border-radius:7px}
+.btn.icon{padding:5px 9px;font-size:14px;line-height:1}
+.btn.danger{color:var(--coral);border-color:#f2c3bb}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700;background:var(--blue-soft);color:var(--blue)}
+.pill.dirty{background:var(--gold-soft);color:#96650a}
+.pill.ro{background:#e8ebf0;color:var(--ink-2)}
+
+/* ---------- tabs ---------- */
+.tabs{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:57px;z-index:30}
+.tabs-in{max-width:1500px;margin:0 auto;padding:0 10px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tabs-in::-webkit-scrollbar{display:none}
+.tab{padding:11px 14px;font-weight:700;font-size:14.5px;color:var(--ink-2);white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--coral);border-bottom-color:var(--coral)}
+.tab .cnt{font-size:11px;color:var(--ink-3);font-weight:500}
+
+/* ---------- layout ---------- */
+.wrap{max-width:1500px;margin:0 auto;padding:18px 16px 90px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:18px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.panel-hd h2{margin:0;font-size:16px;font-weight:900;letter-spacing:-.01em}
+.panel-hd .why{font-size:12.5px;color:var(--ink-3)}
+.panel-bd{padding:16px}
+.tools{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hint{font-size:12.5px;color:var(--ink-3);margin:0 0 10px}
+
+/* ---------- board (紙本樣式) ---------- */
+.scroller{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.board{border-collapse:separate;border-spacing:0;width:100%;min-width:760px}
+table.board th,table.board td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 10px;text-align:center;white-space:nowrap}
+table.board thead th{background:var(--blue);color:#fff;font-size:13.5px;font-weight:700;position:sticky;top:0;z-index:2;border-right-color:#3a67ae}
+table.board th.rowhd{background:#f4f7fb;text-align:left;font-size:13.5px;font-weight:700;position:sticky;left:0;z-index:3;min-width:150px;border-right:2px solid var(--line)}
+table.board thead th.rowhd{background:#153f80;color:#fff;z-index:4}
+table.board td{font-size:17px;font-weight:700}
+tr.r-rank td{background:#fbfcfe;color:var(--ink-2);font-size:15px}
+tr.r-score td{background:#fff}
+tr.r-total td{background:var(--coral-soft);font-size:19px;font-weight:900}
+tr.r-place td{background:#fff5e0;font-size:19px;font-weight:900}
+tr.r-total th.rowhd,tr.r-place th.rowhd{background:#fdf0ec}
+.rowhd .w{display:block;font-size:11px;font-weight:500;color:var(--ink-3)}
+td.p1{color:var(--gold)} td.p2{color:#6d7d90} td.p3{color:#9a6b3f}
+td.empty{color:#c4ccd6;font-weight:400}
+.medal{display:inline-block;margin-right:3px}
+.teamcol .cap{display:block;font-size:11px;font-weight:400;opacity:.8;margin-top:2px}
+
+/* ---------- order bar ---------- */
+.orderbar{display:flex;gap:8px;flex-wrap:wrap;padding:12px 16px;background:#f7f9fc;border-bottom:1px solid var(--line-2)}
+.ochip{display:flex;align-items:center;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px 4px 3px 11px;font-size:13px;font-weight:700}
+.ochip button{width:24px;height:24px;border-radius:50%;color:var(--ink-2);font-size:13px;line-height:1}
+.ochip button:hover{background:var(--line-2);color:var(--ink)}
+
+/* ---------- generic table ---------- */
+table.grid{border-collapse:collapse;width:100%;min-width:680px}
+table.grid th{background:#f4f7fb;font-size:12.5px;color:var(--ink-2);font-weight:700;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+table.grid td{padding:7px 10px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+table.grid tr:last-child td{border-bottom:0}
+table.grid tr.dnf td{background:#fff6f4}
+.tname{font-weight:700}
+.inp{width:100%;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;min-width:0}
+.inp:focus{border-color:var(--blue)}
+select.inp{padding:6px 6px}
+.rankcell{display:flex;align-items:center;gap:8px}
+select.rank{width:86px;font-weight:900;font-size:16px;text-align:center}
+.scorebox{display:inline-block;min-width:54px;text-align:center;font-weight:900;font-size:17px;padding:3px 8px;border-radius:7px;background:var(--blue-soft);color:var(--blue)}
+.scorebox.zero{background:#eef0f4;color:var(--ink-3)}
+.chk{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink-2);white-space:nowrap}
+
+/* ---------- quick entry ---------- */
+.quick{padding:12px 16px;background:var(--teal-soft);border-bottom:1px solid #bfe5de}
+.quick .lbl{font-size:12.5px;color:#0b6b5f;font-weight:700;margin-bottom:8px}
+.qchips{display:flex;gap:8px;flex-wrap:wrap}
+.qchip{display:flex;align-items:center;gap:7px;padding:7px 13px;border-radius:9px;border:1px solid #bfe5de;background:#fff;font-weight:700;font-size:14px}
+.qchip:hover{border-color:var(--teal)}
+.qchip.done{background:var(--teal);border-color:var(--teal);color:#fff}
+.qchip .n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:6px;background:#0b6b5f;color:#fff;font-size:12px;font-weight:900}
+.qchip .n.off{background:#e3ecea;color:#8aa39e}
+
+/* ---------- banner / toast ---------- */
+.banner{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:60;max-width:min(640px,calc(100vw - 24px));
+  background:var(--ink);color:#fff;border-radius:12px;padding:13px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+  box-shadow:0 12px 40px -8px rgba(15,26,42,.55)}
+.banner b{font-size:14.5px}
+.banner p{margin:2px 0 0;font-size:12.5px;color:#b9c6d6}
+.banner .acts{margin-left:auto;display:flex;gap:8px}
+.banner .btn{background:#2b3c52;border:1px solid #3d5070;color:#fff}
+.banner .btn.primary{background:var(--coral);border-color:var(--coral)}
+.toast{position:fixed;right:16px;bottom:16px;z-index:70;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.toast div{background:var(--ink);color:#fff;padding:9px 14px;border-radius:9px;font-size:13.5px;font-weight:700;box-shadow:var(--shadow)}
+.toast div.bad{background:var(--coral)}
+.toast div.good{background:var(--teal)}
+
+/* ---------- misc ---------- */
+.empty-state{padding:34px 16px;text-align:center;color:var(--ink-3)}
+.empty-state b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-2);margin-bottom:4px}
+.field .note{font-size:12px;color:var(--ink-3);margin-top:4px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0 16px}
+.evt{border:1px solid var(--line);border-radius:var(--r);margin-bottom:14px;overflow:hidden}
+.evt-hd{display:flex;align-items:center;gap:10px;padding:11px 14px;background:#f7f9fc;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.evt-hd h3{margin:0;font-size:15px;font-weight:900}
+.tagw{font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-soft);padding:2px 8px;border-radius:999px}
+.rules{font-size:12px;color:var(--ink-3);border-top:1px dashed var(--line);padding:9px 14px;background:#fcfdfe}
+.kbd{background:#eef1f5;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px;font-weight:700}
+details.help{border:1px solid var(--line);border-radius:var(--r);background:var(--card);padding:0 14px;margin-bottom:18px}
+details.help summary{padding:12px 0;font-weight:700;cursor:pointer;font-size:14px}
+details.help .in{padding:0 0 14px;font-size:13.5px;color:var(--ink-2)}
+details.help ol{padding-left:20px;margin:6px 0}
+details.help li{margin-bottom:5px}
+code{background:#eef1f5;padding:1px 5px;border-radius:4px;font-size:12.5px}
+
+/* 大字 / 投影模式 */
+body.big{font-size:17px}
+body.big table.board td{font-size:26px;padding:13px 14px}
+body.big tr.r-total td,body.big tr.r-place td{font-size:32px}
+body.big table.board thead th{font-size:17px}
+body.big table.board th.rowhd{font-size:16px}
+
+@media print{
+  .top,.tabs,.orderbar,.banner,.toast,.tools,.no-print{display:none!important}
+  body{background:#fff}
+  .panel{box-shadow:none;border-color:#999;page-break-inside:avoid}
+  table.board{min-width:0}
+}
+@media (max-width:640px){
+  .top-in{padding:8px 12px;gap:8px}
+  .brand h1{font-size:16px}
+  .brand .sub{display:none}
+  .wrap{padding:14px 10px 90px}
+  .stamp b{font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <h1 id="brandName">家庭日競賽計分總表</h1>
+      <span class="sub" id="brandSub">現場即時同步</span>
+    </div>
+    <div class="sync">
+      <span class="dot off" id="dot" title="連線狀態"></span>
+      <div class="stamp">
+        <b id="stampTime">尚未連線</b>
+        <span id="stampWho">請先到「設定」完成雲端連線</span>
+      </div>
+      <span class="pill ro" id="modePill" hidden>唯讀</span>
+      <span class="pill dirty" id="dirtyPill" hidden>有未保存的變更</span>
+      <button class="btn" id="btnPull">更新</button>
+      <button class="btn primary" id="btnPush">保存</button>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs"><div class="tabs-in" id="tabs" role="tablist"></div></nav>
+
+<main class="wrap" id="view"></main>
+
+<div id="bannerHost"></div>
+<div class="toast" id="toastHost"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   家庭日競賽計分板 · 單檔版
+   儲存後端：GitHub Gist（可換成任何 JSON 服務，見 Store 區塊）
+   ============================================================ */
+
+const LS = {
+  cfg:'fd_cfg_v1',      // 連線設定（gistId / token / 名字），只存在本機
+  cache:'fd_cache_v1',  // 離線快取 + 本機模式資料
+};
+const FILENAME = 'scoreboard.json';
+const uid = (p='id') => p + '_' + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-3);
+const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = s => document.querySelector(s);
+
+/* ---------- 預設資料（比照現場紙本板） ---------- */
+function defaultData(){
+  const names = ['RTK_Fatout','Display_Bon','狂賀!順子晉升軟體總監','整個跑起來不太隊','來都來了','大展鴻圖','SMC_性價比突破天際','肌肉胖子'];
+  const teams = names.map(n => ({ id:uid('t'), name:n, captain:'', contact:'', note:'' }));
+  const ev = (name, weight, scores, tail) => ({ id:uid('e'), name, weight, scores, tail, entries:{} });
+  const roster = () => teams.map(t => ({ teamId:t.id, captain:'', contact:'', note:'' }));
+  return {
+    schema: 1,
+    rev: 1,
+    updatedAt: new Date().toISOString(),
+    updatedBy: '系統',
+    title: '瑞昱39 家庭日 · 競賽計分總表',
+    subtitle: '歡樂無限 · 團隊攜手向前衝',
+    showOverall: true,
+    teams,
+    competitions: [
+      {
+        id: uid('c'), name:'瑞昱最強鐵人三項爭霸賽', short:'鐵人三項', weight:1, mode:'weighted',
+        note:'三項競賽依名次給予權重積分，加總後為隊伍分數，分數最高者為冠軍。',
+        roster: roster(),
+        events: [
+          ev('極限衝鋒', 30, [100,85,70,60,55,50,40,35], 35),
+          ev('力拔山河', 30, [100,85,70,60,55,55,55,55], 55),
+          ev('1200公尺大隊接力', 40, [100,85,70,60,55,50,40,35], 35),
+        ],
+        tieBreak:null,
+      },
+      {
+        id: uid('c'), name:'趣味競賽', short:'趣味競賽', weight:1, mode:'sum',
+        note:'每項取前三名給分，三項累加為趣味競賽總分。',
+        roster: roster(),
+        events: [
+          ev('趣味競賽一', 100, [100,85,70], 0),
+          ev('趣味競賽二', 100, [100,85,70], 0),
+          ev('趣味競賽三', 100, [100,85,70], 0),
+        ],
+        tieBreak:null,
+      },
+    ],
+  };
+}
+// 鐵人三項同分時以「1200公尺大隊接力」勝負為依據
+(function(){ /* 由 normalize 補上 tieBreak */ })();
+
+function normalize(d){
+  d.teams ||= []; d.competitions ||= [];
+  const ids = new Set(d.teams.map(t=>t.id));
+  d.competitions.forEach(c=>{
+    // 舊版沒有名冊 → 預設全員參賽，並把當時的隊長資訊帶進來
+    if(!Array.isArray(c.roster)) c.roster = d.teams.map(t=>({ teamId:t.id, captain:t.captain||'', contact:t.contact||'', note:'' }));
+    c.roster = c.roster.filter(r=>ids.has(r.teamId));
+    c.roster.forEach(r=>{ r.captain ??= ''; r.contact ??= ''; r.note ??= ''; });
+    c.events ||= []; c.mode ||= 'weighted'; c.weight ??= 1;
+    c.events.forEach(e=>{ e.entries ||= {}; e.scores ||= [100,85,70]; e.tail ??= 0; e.weight ??= 100; });
+    if(c.tieBreak===undefined) c.tieBreak = null;
+    if(c.tieBreak===null && c.events.length>1 && /鐵人|三項/.test(c.name)){
+      const relay = c.events.find(e=>/接力/.test(e.name));
+      if(relay) c.tieBreak = relay.id;
+    }
+    if(c.tieBreak && !c.events.some(e=>e.id===c.tieBreak)) c.tieBreak=null;
+  });
+  return d;
+}
+
+/* ============================================================
+   Store：雲端儲存層
+   目前實作 GitHub Gist。要換別的後端，只要改這三個方法即可。
+   ============================================================ */
+const Store = {
+  cfg(){ try{ return JSON.parse(localStorage.getItem(LS.cfg)) || {}; }catch{ return {}; } },
+  saveCfg(c){ localStorage.setItem(LS.cfg, JSON.stringify(c)); },
+  get mode(){ const c=this.cfg(); return c.gistId ? 'gist' : 'local'; },
+  get canWrite(){ const c=this.cfg(); return this.mode==='local' || !!c.token; },
+
+  async read(etag){
+    const c = this.cfg();
+    if(this.mode==='local'){
+      const raw = localStorage.getItem(LS.cache);
+      return { data: raw ? JSON.parse(raw) : null, etag:null };
+    }
+    const h = { 'Accept':'application/vnd.github+json' };
+    if(c.token) h.Authorization = 'Bearer ' + c.token;
+    if(etag) h['If-None-Match'] = etag;
+    const r = await fetch('https://api.github.com/gists/' + c.gistId, { headers:h, cache:'no-store' });
+    if(r.status === 304) return { notModified:true };
+    if(r.status === 401 || r.status === 403) throw new Error('權杖無效或已達 API 次數上限（' + r.status + '）');
+    if(r.status === 404) throw new Error('找不到這個 Gist，請確認 Gist ID');
+    if(!r.ok) throw new Error('讀取失敗（HTTP ' + r.status + '）');
+    const j = await r.json();
+    const f = j.files && (j.files[FILENAME] || Object.values(j.files)[0]);
+    if(!f) throw new Error('Gist 裡沒有檔案，請先放一個 ' + FILENAME);
+    let content = f.content;
+    if(f.truncated && f.raw_url) content = await (await fetch(f.raw_url)).text();
+    return { data: content ? JSON.parse(content) : null, etag: r.headers.get('ETag') };
+  },
+
+  async write(data){
+    const c = this.cfg();
+    if(this.mode==='local'){ localStorage.setItem(LS.cache, JSON.stringify(data)); return { etag:null }; }
+    if(!c.token) throw new Error('沒有權杖，無法寫入雲端');
+    const r = await fetch('https://api.github.com/gists/' + c.gistId, {
+      method:'PATCH',
+      headers:{ 'Accept':'application/vnd.github+json', 'Authorization':'Bearer '+c.token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ files: { [FILENAME]: { content: JSON.stringify(data, null, 2) } } })
+    });
+    if(!r.ok) throw new Error('保存失敗（HTTP ' + r.status + '）');
+    const j = await r.json();
+    return { etag: r.headers.get('ETag'), data: JSON.parse((j.files[FILENAME]||Object.values(j.files)[0]).content) };
+  },
+};
+
+/* ---------- 全域狀態 ---------- */
+const S = {
+  data: null,
+  baseRev: 0,        // 上次同步到的版本
+  etag: null,
+  dirty: false,
+  tab: 'board',
+  sortMode: 'custom', // custom | rank
+  remote: null,       // 偵測到的較新遠端資料
+  polling: null,
+  saving: false,
+  lastErr: '',
+};
+
+/* ---------- 計分核心 ---------- */
+function scoreOf(ev, rank, teamCount){
+  if(rank == null) return null;
+  const arr = ev.scores || [];
+  if(rank >= 1 && rank <= arr.length) return Number(arr[rank-1]) || 0;
+  return Number(ev.tail) || 0;
+}
+/* --- 名冊 --- */
+const teamById = id => S.data.teams.find(t=>t.id===id);
+function rosterTeams(c){ return (c.roster||[]).map(r=>teamById(r.teamId)).filter(Boolean); }
+function rinfo(c, teamId){ return (c.roster||[]).find(r=>r.teamId===teamId) || {}; }
+function compSize(c){ return rosterTeams(c).length; }
+function inRoster(c, teamId){ return (c.roster||[]).some(r=>r.teamId===teamId); }
+/** 該隊在這場競賽的隊長／聯繫方式：項目層 → 競賽名冊層 → 總名冊預設 */
+function contactChain(c, ev, teamId, field){
+  const en = ev && ev.entries[teamId];
+  if(en && en[field]) return en[field];
+  const r = rinfo(c, teamId);
+  if(r[field]) return r[field];
+  return (teamById(teamId)||{})[field] || '';
+}
+
+function entryOf(ev, teamId){ return (ev.entries[teamId] ||= { rank:null, dnf:false, captain:'', contact:'', note:'' }); }
+function effRank(ev, teamId, teamCount){
+  const en = ev.entries[teamId];
+  if(!en) return null;
+  if(en.dnf) return teamCount;          // 中止競賽 → 以該項目最後一名計分
+  return en.rank ?? null;
+}
+function eventScore(ev, teamId, teamCount){
+  return scoreOf(ev, effRank(ev, teamId, teamCount), teamCount);
+}
+function compTotal(c, teamId){
+  if(!inRoster(c, teamId)) return null;
+  const n = compSize(c);
+  let sum = 0, any = false;
+  c.events.forEach(ev=>{
+    const s = eventScore(ev, teamId, n);
+    if(s != null){ any = true; sum += s * (Number(ev.weight)||0) / 100; }
+  });
+  return any ? Math.round(sum*100)/100 : null;
+}
+function compRanking(c){
+  const teams = rosterTeams(c), n = teams.length;
+  const tbEv = c.tieBreak ? c.events.find(e=>e.id===c.tieBreak) : null;
+  const rows = teams.map(t=>({ id:t.id, total: compTotal(c,t.id) ?? -1,
+    tb: tbEv ? (effRank(tbEv, t.id, n) ?? 999) : 999 }));
+  rows.sort((a,b)=> b.total - a.total || a.tb - b.tb);
+  const place = {}; let last=null, lastPlace=0;
+  rows.forEach((r,i)=>{
+    const key = r.total + '|' + (tbEv ? r.tb : '');
+    if(key === last) place[r.id] = lastPlace;
+    else { place[r.id] = i+1; last = key; lastPlace = i+1; }
+  });
+  return place;
+}
+/** 綜合總表只收「至少參加過一場競賽」的隊伍 */
+function overallTeams(){
+  return S.data.teams.filter(t => S.data.competitions.some(c=>inRoster(c,t.id)));
+}
+function overallTotal(teamId){
+  let sum=0, any=false;
+  S.data.competitions.forEach(c=>{
+    const t = compTotal(c, teamId);
+    if(t!=null){ any=true; sum += t * (Number(c.weight)||0); }
+  });
+  return any ? Math.round(sum*100)/100 : null;
+}
+function overallRanking(){
+  const rows = overallTeams().map(t=>({id:t.id, total: overallTotal(t.id) ?? -1}));
+  rows.sort((a,b)=>b.total-a.total);
+  const place={}; let last=null,lp=0;
+  rows.forEach((r,i)=>{ if(r.total===last) place[r.id]=lp; else {place[r.id]=i+1; last=r.total; lp=i+1;} });
+  return place;
+}
+/** 單場競賽的欄位順序（自訂 = 名冊順序） */
+function boardTeams(c){
+  const teams = rosterTeams(c);
+  if(S.sortMode==='rank'){ const p = compRanking(c); return [...teams].sort((a,b)=>(p[a.id]||99)-(p[b.id]||99)); }
+  return teams;
+}
+function overallOrdered(){
+  const teams = overallTeams();
+  if(S.sortMode==='rank'){ const p = overallRanking(); return [...teams].sort((a,b)=>(p[a.id]||99)-(p[b.id]||99)); }
+  return teams;
+}
+/** 從某場競賽名冊移除隊伍，連同該場成績 */
+function removeFromRoster(c, teamId){
+  c.roster = c.roster.filter(r=>r.teamId!==teamId);
+  c.events.forEach(ev=>{ delete ev.entries[teamId]; });
+}
+
+/* ---------- 同步 ---------- */
+function markDirty(){ S.dirty = true; paintSync(); scheduleAuto(); }
+let autoT=null;
+function scheduleAuto(){
+  const c = Store.cfg();
+  if(!c.autoSave || !Store.canWrite) return;
+  clearTimeout(autoT);
+  autoT = setTimeout(()=>push(true), 1500);
+}
+function fmt(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  const p = n=>String(n).padStart(2,'0');
+  return `${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+function paintSync(){
+  const dot = $('#dot'), t = $('#stampTime'), w = $('#stampWho');
+  $('#dirtyPill').hidden = !S.dirty;
+  $('#modePill').hidden = Store.canWrite;
+  $('#btnPush').disabled = !Store.canWrite || S.saving;
+  if(S.lastErr){ dot.className='dot bad'; t.textContent='同步異常'; w.textContent=S.lastErr; return; }
+  if(!S.data){ dot.className='dot off'; return; }
+  dot.className = 'dot' + (S.remote ? ' warn' : S.dirty ? ' warn' : '');
+  t.textContent = '最後更新 ' + fmt(S.data.updatedAt);
+  w.textContent = (S.data.updatedBy ? '由 ' + S.data.updatedBy : '') + ' · v' + S.data.rev + (Store.mode==='local'?' · 本機模式':'');
+}
+function toast(msg, kind=''){
+  const d = document.createElement('div'); d.className=kind; d.textContent=msg;
+  $('#toastHost').appendChild(d);
+  setTimeout(()=>{ d.style.opacity='0'; d.style.transition='opacity .4s'; setTimeout(()=>d.remove(),400); }, 2600);
+}
+
+async function pull(manual=true){
+  try{
+    S.lastErr='';
+    const r = await Store.read(S.etag);
+    if(r.notModified){ if(manual) toast('已是最新資料'); paintSync(); return; }
+    if(!r.data){
+      if(manual && confirm('雲端還沒有資料，要用目前畫面上的內容建立初始版本嗎？')) return push(false);
+      return;
+    }
+    const remote = normalize(r.data);
+    S.etag = r.etag;
+    if(S.dirty && remote.rev !== S.baseRev){ S.remote = remote; renderBanner(); paintSync(); return; }
+    if(!S.dirty && S.data && remote.rev === S.data.rev){ if(manual) toast('已是最新資料'); paintSync(); return; }
+    applyRemote(remote);
+    if(manual) toast('已載入最新資料', 'good');
+  }catch(e){ S.lastErr = e.message; paintSync(); if(manual) toast(e.message,'bad'); }
+}
+function applyRemote(remote){
+  S.data = remote; S.baseRev = remote.rev; S.dirty = false; S.remote = null;
+  localStorage.setItem(LS.cache, JSON.stringify(remote));
+  renderBanner(); render(); paintSync();
+}
+async function push(silent=false, force=false){
+  if(!Store.canWrite){ toast('目前為唯讀模式，請先在「設定」填入權杖','bad'); return; }
+  if(S.saving) return;
+  S.saving = true; paintSync();
+  try{
+    if(Store.mode==='gist' && !force){
+      const r = await Store.read(null);
+      if(r.data && r.data.rev !== S.baseRev && S.baseRev !== 0){
+        S.remote = normalize(r.data); S.saving=false; renderBanner(); paintSync();
+        toast('雲端已被其他人更新，請先處理下方提示','bad'); return;
+      }
+      if(r.data) S.etag = r.etag;
+    }
+    S.data.rev = (Number(S.data.rev)||0) + 1;
+    S.data.updatedAt = new Date().toISOString();
+    S.data.updatedBy = Store.cfg().who || '未署名';
+    const w = await Store.write(S.data);
+    if(w.etag) S.etag = w.etag;
+    S.baseRev = S.data.rev; S.dirty = false; S.lastErr='';
+    localStorage.setItem(LS.cache, JSON.stringify(S.data));
+    if(!silent) toast('已保存到雲端','good');
+    renderHeaderBits(); paintSync();
+  }catch(e){ S.lastErr = e.message; toast(e.message,'bad'); }
+  S.saving=false; paintSync();
+}
+
+function renderBanner(){
+  const host = $('#bannerHost'); host.innerHTML='';
+  if(!S.remote) return;
+  const r = S.remote;
+  const b = document.createElement('div'); b.className='banner';
+  b.innerHTML = `<div>
+      <b>有人更新了記分表</b>
+      <p>${esc(r.updatedBy||'')} 於 ${fmt(r.updatedAt)} 保存了 v${r.rev}${S.dirty?'，而你有尚未保存的變更':''}</p>
+    </div><div class="acts"></div>`;
+  const acts = b.querySelector('.acts');
+  const load = document.createElement('button');
+  load.className='btn primary'; load.textContent = S.dirty ? '放棄我的變更並載入' : '載入最新';
+  load.onclick = ()=>{ if(S.dirty && !confirm('你未保存的變更會被覆蓋，確定嗎？')) return; applyRemote(S.remote); toast('已載入最新資料','good'); };
+  acts.appendChild(load);
+  if(S.dirty){
+    const keep = document.createElement('button');
+    keep.className='btn'; keep.textContent='以我的為準覆蓋';
+    keep.onclick = async ()=>{ if(!confirm('會覆蓋雲端上別人的更新，確定嗎？')) return; S.baseRev = S.remote.rev; S.remote=null; renderBanner(); await push(false,true); };
+    acts.appendChild(keep);
+  }
+  const x = document.createElement('button'); x.className='btn'; x.textContent='稍後'; x.onclick=()=>{ S.remote=null; renderBanner(); };
+  acts.appendChild(x);
+  host.appendChild(b);
+}
+function startPolling(){
+  clearInterval(S.polling);
+  const c = Store.cfg();
+  const sec = Math.max(5, Number(c.poll) || (c.token ? 10 : 45));
+  S.polling = setInterval(async ()=>{
+    if(document.hidden || S.saving) return;
+    try{
+      const r = await Store.read(S.etag);
+      if(r.notModified || !r.data) return;
+      const remote = normalize(r.data);
+      S.etag = r.etag;
+      if(remote.rev === S.data?.rev && !S.dirty) return;
+      if(remote.rev === S.baseRev) return;
+      if(S.dirty){ S.remote = remote; renderBanner(); paintSync(); }
+      else { S.remote = remote; renderBanner(); paintSync(); }   // 提醒未刷新的使用者
+    }catch(e){ /* 靜默，避免現場干擾 */ }
+  }, sec*1000);
+}
+
+/* ============================================================
+   畫面
+   ============================================================ */
+function renderHeaderBits(){
+  $('#brandName').textContent = S.data?.title || '家庭日競賽計分總表';
+  $('#brandSub').textContent = S.data?.subtitle || '現場即時同步';
+  document.title = (S.data?.title || '計分總表');
+}
+function renderTabs(){
+  const host = $('#tabs'); host.innerHTML='';
+  const items = [{id:'board', label:'總計分板'}]
+    .concat(S.data.competitions.map(c=>({id:'c:'+c.id, label:c.short||c.name, cnt:c.events.length+' 項'})))
+    .concat([{id:'teams', label:'隊伍總名冊'},{id:'setup', label:'賽事設定'},{id:'cloud', label:'連線與備份'}]);
+  items.forEach(it=>{
+    const b = document.createElement('button');
+    b.className='tab'; b.setAttribute('role','tab');
+    b.setAttribute('aria-selected', String(S.tab===it.id));
+    b.innerHTML = esc(it.label) + (it.cnt?` <span class="cnt">${esc(it.cnt)}</span>`:'');
+    b.onclick = ()=>{ S.tab = it.id; render(); window.scrollTo({top:0}); };
+    host.appendChild(b);
+  });
+}
+function render(){
+  if(!S.data){ return; }
+  renderHeaderBits(); renderTabs();
+  const v = $('#view'); v.innerHTML='';
+  if(S.tab==='board') v.appendChild(viewBoard());
+  else if(S.tab.startsWith('c:')) v.appendChild(viewComp(S.data.competitions.find(c=>c.id===S.tab.slice(2))));
+  else if(S.tab==='teams') v.appendChild(viewTeams());
+  else if(S.tab==='setup') v.appendChild(viewSetup());
+  else if(S.tab==='cloud') v.appendChild(viewCloud());
+  paintSync();
+}
+function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstElementChild; }
+const medal = p => p===1?'🥇':p===2?'🥈':p===3?'🥉':'';
+
+/* ---------- 總計分板 ---------- */
+function viewBoard(){
+  const frag = document.createElement('div');
+
+  if(!S.data.teams.length){
+    frag.appendChild(el(`<div class="panel"><div class="empty-state"><b>還沒有隊伍</b>先到「隊伍總名冊」建立組別，再到各競賽分頁挑選誰參賽。</div></div>`));
+    return frag;
+  }
+
+  const ctrl = el(`<div class="panel"><div class="panel-hd">
+      <h2>檢視方式</h2>
+      <span class="why">每場競賽的欄位順序各自獨立，用下方箭頭即時對齊現場板子</span>
+      <div class="tools no-print">
+        <button class="btn sm" id="sortCustom">自訂順序</button>
+        <button class="btn sm" id="sortRank">依名次排列</button>
+        <button class="btn sm" id="bigMode">大字模式</button>
+        <button class="btn sm" id="doPrint">列印</button>
+      </div></div></div>`);
+  ctrl.querySelector('#sortCustom').onclick = ()=>{ S.sortMode='custom'; render(); };
+  ctrl.querySelector('#sortRank').onclick = ()=>{ S.sortMode='rank'; render(); };
+  ctrl.querySelector('#bigMode').onclick = ()=> document.body.classList.toggle('big');
+  ctrl.querySelector('#doPrint').onclick = ()=> window.print();
+  ctrl.querySelector(S.sortMode==='rank'?'#sortRank':'#sortCustom').classList.add('primary');
+  frag.appendChild(ctrl);
+
+  S.data.competitions.forEach(c => frag.appendChild(boardTable(c)));
+
+  if(S.data.showOverall && S.data.competitions.length>1) frag.appendChild(overallTable());
+  return frag;
+}
+function boardTable(c){
+  const teams = boardTeams(c);
+  const n = compSize(c);
+  const place = compRanking(c);
+  const p = el(`<div class="panel"><div class="panel-hd"><h2>${esc(c.name)}</h2>
+      <span class="why">${esc(c.note||'')}${teams.length?` · ${teams.length} 隊參賽`:''}</span></div>
+    <div class="orderbar no-print" id="ob_${c.id}"></div>
+    <div class="scroller"><table class="board"><thead><tr><th class="rowhd">項目／隊伍</th></tr></thead><tbody></tbody></table></div></div>`);
+
+  if(!teams.length){
+    p.querySelector('.scroller').replaceWith(el(`<div class="empty-state"><b>這場競賽還沒有參賽隊伍</b>到「${esc(c.short||c.name)}」分頁的「參賽隊伍」加入即可。</div>`));
+    p.querySelector('.orderbar').remove();
+    return p;
+  }
+
+  // 本場專屬的順序調整
+  const ob = p.querySelector('.orderbar');
+  if(S.sortMode==='rank'){ ob.remove(); }
+  else c.roster.forEach((r,i)=>{
+    const t = teamById(r.teamId); if(!t) return;
+    const chip = el(`<div class="ochip"><span>${esc(t.name)}</span>
+      <button title="往左" data-d="-1">◀</button><button title="往右" data-d="1">▶</button></div>`);
+    chip.querySelectorAll('button').forEach(b=> b.onclick = ()=>{
+      const j = i + Number(b.dataset.d);
+      if(j<0 || j>=c.roster.length) return;
+      [c.roster[i], c.roster[j]] = [c.roster[j], c.roster[i]];
+      markDirty(); render();
+    });
+    ob.appendChild(chip);
+  });
+
+  const hr = p.querySelector('thead tr'), tb = p.querySelector('tbody');
+  teams.forEach(t=>{
+    const cap = contactChain(c, null, t.id, 'captain');
+    const th = document.createElement('th'); th.className='teamcol';
+    th.innerHTML = esc(t.name) + (cap? `<span class="cap">隊長 ${esc(cap)}</span>`:'');
+    hr.appendChild(th);
+  });
+  c.events.forEach(ev=>{
+    const r1 = el(`<tr class="r-rank"><th class="rowhd">${esc(ev.name)}<span class="w">名次</span></th></tr>`);
+    const wl = c.mode==='sum' ? '積分' : `積分<span class="w">（權重 ${ev.weight}%）</span>`;
+    const r2 = el(`<tr class="r-score"><th class="rowhd">${wl}</th></tr>`);
+    teams.forEach(t=>{
+      const en = ev.entries[t.id] || {};
+      const rk = effRank(ev, t.id, n);
+      const sc = eventScore(ev, t.id, n);
+      const c1 = document.createElement('td');
+      c1.innerHTML = rk==null ? '<span class="empty">—</span>' : (en.dnf? `${rk}<span class="w" style="font-size:11px;color:#e63b22">中止</span>` : rk);
+      if(rk==null) c1.className='empty';
+      const c2 = document.createElement('td');
+      c2.innerHTML = sc==null ? '<span class="empty">—</span>' : sc;
+      r1.appendChild(c1); r2.appendChild(c2);
+    });
+    tb.appendChild(r1); tb.appendChild(r2);
+  });
+  const rt = el(`<tr class="r-total"><th class="rowhd">總積分</th></tr>`);
+  const rp = el(`<tr class="r-place"><th class="rowhd">名次</th></tr>`);
+  teams.forEach(t=>{
+    const tot = compTotal(c, t.id);
+    const td1 = document.createElement('td'); td1.innerHTML = tot==null?'<span class="empty">—</span>':tot;
+    const pl = place[t.id];
+    const td2 = document.createElement('td');
+    td2.innerHTML = tot==null?'<span class="empty">—</span>':`<span class="medal">${medal(pl)}</span>${pl}`;
+    if(tot!=null && pl<=3) td2.classList.add('p'+pl);
+    rt.appendChild(td1); rp.appendChild(td2);
+  });
+  tb.appendChild(rt); tb.appendChild(rp);
+  if(c.tieBreak){
+    const ev = c.events.find(e=>e.id===c.tieBreak);
+    p.appendChild(el(`<div class="rules">同分時，以【${esc(ev?.name||'')}】勝負為依據。</div>`));
+  }
+  return p;
+}
+function overallTable(){
+  const teams = overallOrdered();
+  if(!teams.length) return document.createElement('div');
+  const place = overallRanking();
+  const p = el(`<div class="panel"><div class="panel-hd"><h2>綜合總冠軍</h2>
+     <span class="why">各競賽總分乘上競賽權重後加總；未參加該場競賽以「—」表示，不計分</span></div>
+     <div class="scroller"><table class="board"><thead><tr><th class="rowhd">項目／隊伍</th></tr></thead><tbody></tbody></table></div></div>`);
+  const hr=p.querySelector('thead tr'), tb=p.querySelector('tbody');
+  teams.forEach(t=>{ const th=document.createElement('th'); th.textContent=t.name; hr.appendChild(th); });
+  S.data.competitions.forEach(c=>{
+    const r = el(`<tr class="r-score"><th class="rowhd">${esc(c.short||c.name)}<span class="w">×${c.weight}</span></th></tr>`);
+    teams.forEach(t=>{ const v=compTotal(c,t.id); const td=document.createElement('td'); td.innerHTML=v==null?'<span class="empty">—</span>':v; r.appendChild(td); });
+    tb.appendChild(r);
+  });
+  const rt = el(`<tr class="r-total"><th class="rowhd">綜合積分</th></tr>`);
+  const rp = el(`<tr class="r-place"><th class="rowhd">綜合名次</th></tr>`);
+  teams.forEach(t=>{
+    const v = overallTotal(t.id), pl=place[t.id];
+    const a=document.createElement('td'); a.innerHTML=v==null?'<span class="empty">—</span>':v;
+    const b=document.createElement('td'); b.innerHTML=v==null?'<span class="empty">—</span>':`<span class="medal">${medal(pl)}</span>${pl}`;
+    if(v!=null&&pl<=3) b.classList.add('p'+pl);
+    rt.appendChild(a); rp.appendChild(b);
+  });
+  tb.appendChild(rt); tb.appendChild(rp);
+  return p;
+}
+
+/* ---------- 單一競賽（登錄名次 + 各項隊長聯絡資訊） ---------- */
+function viewComp(c){
+  const frag = document.createElement('div');
+  if(!c){ frag.appendChild(el('<div class="panel"><div class="empty-state">找不到這個競賽</div></div>')); return frag; }
+  const n = compSize(c);
+
+  frag.appendChild(rosterPanel(c));
+
+  const head = el(`<div class="panel"><div class="panel-hd"><h2>成績登錄</h2>
+    <span class="why">${esc(c.note||'')}</span>
+    <div class="tools no-print"><button class="btn sm" id="addEv">新增項目</button></div></div>
+    <div class="panel-bd"><p class="hint">在每個項目裡登錄名次，總計分板會立即換算積分。名次可用綠色色塊「快速登錄」——依抵達順序點隊伍就好。</p></div></div>`);
+  head.querySelector('#addEv').onclick = ()=>{
+    const name = prompt('新項目名稱', '新項目'); if(!name) return;
+    c.events.push({ id:uid('e'), name, weight: c.mode==='sum'?100:0, scores:[100,85,70], tail:0, entries:{} });
+    markDirty(); render();
+  };
+  frag.appendChild(head);
+
+  if(!n) frag.appendChild(el('<div class="panel"><div class="empty-state"><b>還沒有參賽隊伍</b>先在上方加入隊伍，成績欄位才會出現。</div></div>'));
+  else c.events.forEach(ev => frag.appendChild(eventCard(c, ev, n)));
+  return frag;
+}
+
+/* 每場競賽自己的參賽名冊 */
+function rosterPanel(c){
+  const p = el(`<div class="panel"><div class="panel-hd"><h2>參賽隊伍</h2>
+      <span class="why">只影響這場競賽；由上而下就是計分板的欄位順序</span>
+      <div class="tools"><button class="btn sm primary" id="rNew">新增隊伍</button></div></div>
+    <div class="panel-bd">
+      <div id="rPool"></div>
+      <div class="scroller"><table class="grid">
+        <thead><tr><th style="width:56px">順序</th><th style="min-width:180px">組別名稱</th>
+          <th style="min-width:110px">本場隊長</th><th style="min-width:150px">聯繫方式</th>
+          <th style="min-width:140px">備註</th><th style="width:60px"></th></tr></thead>
+        <tbody></tbody></table></div>
+    </div></div>`);
+  const tb = p.querySelector('tbody');
+
+  c.roster.forEach((r,i)=>{
+    const t = teamById(r.teamId); if(!t) return;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><button class="btn icon sm" data-d="-1">▲</button> <button class="btn icon sm" data-d="1">▼</button></td>
+      <td><input class="inp" data-g="name" value="${esc(t.name)}"></td>
+      <td><input class="inp" data-f="captain" value="${esc(r.captain||'')}" placeholder="${esc(t.captain||'姓名')}"></td>
+      <td><input class="inp" data-f="contact" value="${esc(r.contact||'')}" placeholder="${esc(t.contact||'分機 / 手機 / Line')}"></td>
+      <td><input class="inp" data-f="note" value="${esc(r.note||'')}" placeholder="人數、集合點…"></td>
+      <td><button class="btn sm danger" data-x="1">移除</button></td>`;
+    tr.querySelectorAll('[data-d]').forEach(b=> b.onclick=()=>{
+      const j=i+Number(b.dataset.d); if(j<0||j>=c.roster.length) return;
+      [c.roster[i],c.roster[j]]=[c.roster[j],c.roster[i]]; markDirty(); render();
+    });
+    // 改名會同步到總名冊與其他競賽（同一個組別）
+    tr.querySelector('[data-g=name]').oninput = e=>{ t.name = e.target.value; markDirty(); };
+    ['captain','contact','note'].forEach(f=>{
+      tr.querySelector(`[data-f=${f}]`).oninput = e=>{ r[f]=e.target.value; markDirty(); };
+    });
+    tr.querySelector('[data-x]').onclick = ()=>{
+      if(!confirm(`把「${t.name}」移出「${c.short||c.name}」？\n該隊在這場競賽的成績會一併清除，其他競賽不受影響。`)) return;
+      removeFromRoster(c, t.id); markDirty(); render();
+    };
+    tb.appendChild(tr);
+  });
+  if(!c.roster.length) tb.appendChild(el('<tr><td colspan="6"><div class="empty-state">尚未加入任何隊伍</div></td></tr>'));
+
+  // 可加入的隊伍（來自總名冊）
+  const pool = S.data.teams.filter(t=>!inRoster(c,t.id));
+  const host = p.querySelector('#rPool');
+  if(pool.length){
+    host.className = 'quick'; host.style.margin = '-16px -16px 16px'; host.style.borderRadius = '0';
+    host.innerHTML = `<div class="lbl">從總名冊加入（點一下即加入本場競賽）</div><div class="qchips"></div>`;
+    const chips = host.querySelector('.qchips');
+    pool.forEach(t=>{
+      const b = el(`<button class="qchip"><span class="n off">＋</span>${esc(t.name)}</button>`);
+      b.onclick = ()=>{ c.roster.push({ teamId:t.id, captain:'', contact:'', note:'' }); markDirty(); render(); };
+      chips.appendChild(b);
+    });
+  }
+
+  p.querySelector('#rNew').onclick = ()=>{
+    const name = prompt(`新增隊伍到「${c.short||c.name}」\n（同時會加進總名冊）`, '新隊伍 '+(c.roster.length+1));
+    if(!name) return;
+    const t = { id:uid('t'), name, captain:'', contact:'', note:'' };
+    S.data.teams.push(t);
+    c.roster.push({ teamId:t.id, captain:'', contact:'', note:'' });
+    markDirty(); render();
+  };
+  return p;
+}
+function eventCard(c, ev, n){
+  const box = el(`<div class="panel"></div>`);
+  const wLabel = c.mode==='sum' ? '直接累加' : `權重 ${ev.weight}%`;
+  const hd = el(`<div class="panel-hd">
+      <h2>${esc(ev.name)}</h2><span class="tagw">${esc(wLabel)}</span>
+      <span class="why">積分表 ${ (ev.scores||[]).join(' / ') }${ev.tail?` · 其餘 ${ev.tail}`:''}</span>
+      <div class="tools no-print">
+        <button class="btn sm" data-a="renumber">重新編號</button>
+        <button class="btn sm" data-a="clear">清空名次</button>
+        <button class="btn sm danger" data-a="del">刪除項目</button>
+      </div></div>`);
+  hd.querySelector('[data-a=renumber]').onclick = ()=>{
+    const rows = S.data.teams.map(t=>({t, r: ev.entries[t.id]?.rank}))
+      .filter(x=>x.r!=null).sort((a,b)=>a.r-b.r);
+    rows.forEach((x,i)=> entryOf(ev,x.t.id).rank = i+1);
+    markDirty(); render();
+  };
+  hd.querySelector('[data-a=clear]').onclick = ()=>{
+    if(!confirm(`清空「${ev.name}」所有名次？（隊長聯絡資訊會保留）`)) return;
+    Object.values(ev.entries).forEach(e=>{ e.rank=null; e.dnf=false; });
+    markDirty(); render();
+  };
+  hd.querySelector('[data-a=del]').onclick = ()=>{
+    if(!confirm(`刪除項目「${ev.name}」？`)) return;
+    c.events = c.events.filter(x=>x.id!==ev.id); markDirty(); render();
+  };
+  box.appendChild(hd);
+
+  // 快速登錄
+  const q = el(`<div class="quick no-print"><div class="lbl">快速登錄名次 · 依抵達順序點選隊伍（再點一次取消）</div><div class="qchips"></div></div>`);
+  const chips = q.querySelector('.qchips');
+  const roster = rosterTeams(c);
+  roster.forEach(t=>{
+    const en = ev.entries[t.id] || {};
+    const has = en.rank != null;
+    const b = el(`<button class="qchip ${has?'done':''}"><span class="n ${has?'':'off'}">${has?en.rank:'–'}</span>${esc(t.name)}</button>`);
+    b.onclick = ()=>{
+      const e = entryOf(ev, t.id);
+      if(e.rank != null){ e.rank = null; }
+      else {
+        const used = roster.map(x=>ev.entries[x.id]?.rank).filter(r=>r!=null);
+        e.rank = used.length ? Math.max(...used)+1 : 1;
+      }
+      markDirty(); render();
+    };
+    chips.appendChild(b);
+  });
+  box.appendChild(q);
+
+  // 明細表
+  const wrap = el(`<div class="scroller"><table class="grid">
+    <thead><tr><th style="min-width:150px">組別</th><th style="width:170px">名次</th><th style="width:96px">積分</th>
+      <th style="min-width:110px">本項隊長</th><th style="min-width:140px">聯繫方式</th><th style="min-width:130px">備註</th></tr></thead>
+    <tbody></tbody></table></div>`);
+  const tb = wrap.querySelector('tbody');
+  const dupes = {};
+  roster.forEach(t=>{ const r = ev.entries[t.id]?.rank; if(r!=null) dupes[r]=(dupes[r]||0)+1; });
+
+  roster.forEach(t=>{
+    const en = entryOf(ev, t.id);
+    const ri = rinfo(c, t.id);
+    const tr = document.createElement('tr');
+    if(en.dnf) tr.className='dnf';
+    const sc = eventScore(ev, t.id, n);
+    let opts = '<option value="">—</option>';
+    for(let i=1;i<=Math.max(n, 12);i++) opts += `<option value="${i}" ${en.rank===i?'selected':''}>第 ${i} 名</option>`;
+    tr.innerHTML = `
+      <td class="tname">${esc(t.name)}${dupes[en.rank]>1?' <span style="color:#e63b22;font-size:12px">名次重複</span>':''}</td>
+      <td><div class="rankcell">
+        <select class="inp rank" data-f="rank" ${en.dnf?'disabled':''}>${opts}</select>
+        <label class="chk"><input type="checkbox" data-f="dnf" ${en.dnf?'checked':''}> 中止</label>
+      </div></td>
+      <td><span class="scorebox ${sc?'':'zero'}">${sc==null?'—':sc}</span></td>
+      <td><input class="inp" data-f="captain" value="${esc(en.captain||'')}" placeholder="${esc(ri.captain||t.captain||'同本場隊長')}"></td>
+      <td><input class="inp" data-f="contact" value="${esc(en.contact||'')}" placeholder="${esc(ri.contact||t.contact||'分機 / 手機')}"></td>
+      <td><input class="inp" data-f="note" value="${esc(en.note||'')}" placeholder="成績、備註"></td>`;
+    tr.querySelector('[data-f=rank]').onchange = e=>{ en.rank = e.target.value ? Number(e.target.value) : null; markDirty(); render(); };
+    tr.querySelector('[data-f=dnf]').onchange = e=>{ en.dnf = e.target.checked; markDirty(); render(); };
+    ['captain','contact','note'].forEach(f=>{
+      tr.querySelector(`[data-f=${f}]`).oninput = e=>{ en[f] = e.target.value; markDirty(); };
+    });
+    tb.appendChild(tr);
+  });
+  box.appendChild(wrap);
+  box.appendChild(el(`<div class="rules">勾選「中止」代表該隊因故無法完賽，系統會以本項目最後一名（第 ${n} 名）的積分計點。</div>`));
+  return box;
+}
+
+/* ---------- 隊伍與聯絡人 ---------- */
+function viewTeams(){
+  const frag = document.createElement('div');
+  const p = el(`<div class="panel"><div class="panel-hd"><h2>隊伍總名冊</h2>
+    <span class="why">所有組別的共用資料；各場競賽要誰上場，在該競賽分頁的「參賽隊伍」決定</span>
+    <div class="tools"><button class="btn sm primary" id="addT">新增隊伍</button></div></div>
+    <div class="panel-bd" style="padding-bottom:0"><p class="hint">這裡填的隊長與聯繫方式是預設值；某場競賽換人帶隊時，在該場的「參賽隊伍」覆寫即可，不會影響其他競賽。</p></div>
+    <div class="scroller"><table class="grid">
+      <thead><tr><th style="width:56px">順序</th><th style="min-width:180px">組別名稱</th><th style="min-width:110px">預設隊長</th>
+        <th style="min-width:150px">聯繫方式</th><th style="min-width:130px">備註</th>
+        <th style="min-width:170px">參賽場次</th><th style="width:60px"></th></tr></thead>
+      <tbody></tbody></table></div></div>`);
+  const tb = p.querySelector('tbody');
+  S.data.teams.forEach((t,i)=>{
+    const tr = document.createElement('tr');
+    const joined = S.data.competitions.filter(c=>inRoster(c,t.id));
+    const badges = joined.length
+      ? joined.map(c=>`<span class="pill" style="margin:1px 3px 1px 0">${esc(c.short||c.name)}</span>`).join('')
+      : '<span style="color:#8494a8;font-size:12.5px">未參加任何競賽</span>';
+    tr.innerHTML = `<td><button class="btn icon sm" data-d="-1">▲</button> <button class="btn icon sm" data-d="1">▼</button></td>
+      <td><input class="inp" data-f="name" value="${esc(t.name)}"></td>
+      <td><input class="inp" data-f="captain" value="${esc(t.captain||'')}" placeholder="姓名"></td>
+      <td><input class="inp" data-f="contact" value="${esc(t.contact||'')}" placeholder="分機 / 手機 / Line"></td>
+      <td><input class="inp" data-f="note" value="${esc(t.note||'')}" placeholder="部門、人數…"></td>
+      <td>${badges}</td>
+      <td><button class="btn sm danger" data-x="1">刪除</button></td>`;
+    tr.querySelectorAll('[data-d]').forEach(b=> b.onclick=()=>{
+      const j=i+Number(b.dataset.d); if(j<0||j>=S.data.teams.length) return;
+      const a=S.data.teams; [a[i],a[j]]=[a[j],a[i]]; markDirty(); render();
+    });
+    ['name','captain','contact','note'].forEach(f=>{
+      tr.querySelector(`[data-f=${f}]`).oninput = e=>{ t[f]=e.target.value; markDirty(); if(f==='name') renderHeaderBits(); };
+    });
+    tr.querySelector('[data-x]').onclick = ()=>{
+      if(!confirm(`從總名冊刪除「${t.name}」？\n該隊在所有競賽的名冊與成績都會一併移除。`)) return;
+      S.data.teams = S.data.teams.filter(x=>x.id!==t.id);
+      S.data.competitions.forEach(c=>removeFromRoster(c, t.id));
+      markDirty(); render();
+    };
+    tb.appendChild(tr);
+  });
+  p.querySelector('#addT').onclick = ()=>{
+    S.data.teams.push({ id:uid('t'), name:'新隊伍 '+(S.data.teams.length+1), captain:'', contact:'', note:'' });
+    markDirty(); render();
+  };
+  if(!S.data.teams.length) tb.appendChild(el('<tr><td colspan="7"><div class="empty-state"><b>還沒有隊伍</b>按右上角「新增隊伍」開始建立組別。</div></td></tr>'));
+  frag.appendChild(p);
+  return frag;
+}
+
+/* ---------- 賽事設定 ---------- */
+function viewSetup(){
+  const frag = document.createElement('div');
+  const g = el(`<div class="panel"><div class="panel-hd"><h2>活動資訊</h2></div><div class="panel-bd">
+    <div class="cols">
+      <div class="field"><label>標題</label><input class="inp" id="f_title" value="${esc(S.data.title||'')}"></div>
+      <div class="field"><label>副標</label><input class="inp" id="f_sub" value="${esc(S.data.subtitle||'')}"></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="f_ov" ${S.data.showOverall?'checked':''}> 在總計分板顯示「綜合總冠軍」</label>
+  </div></div>`);
+  g.querySelector('#f_title').oninput = e=>{ S.data.title=e.target.value; markDirty(); renderHeaderBits(); };
+  g.querySelector('#f_sub').oninput = e=>{ S.data.subtitle=e.target.value; markDirty(); renderHeaderBits(); };
+  g.querySelector('#f_ov').onchange = e=>{ S.data.showOverall=e.target.checked; markDirty(); };
+  frag.appendChild(g);
+
+  S.data.competitions.forEach((c,ci)=>{
+    const p = el(`<div class="panel"><div class="panel-hd"><h2>${esc(c.name)}</h2>
+      <div class="tools">
+        <button class="btn sm" data-a="up">▲</button><button class="btn sm" data-a="down">▼</button>
+        <button class="btn sm danger" data-a="del">刪除競賽</button></div></div>
+      <div class="panel-bd">
+        <div class="cols">
+          <div class="field"><label>競賽全名</label><input class="inp" data-f="name" value="${esc(c.name)}"></div>
+          <div class="field"><label>分頁短名</label><input class="inp" data-f="short" value="${esc(c.short||'')}"></div>
+          <div class="field"><label>計分方式</label>
+            <select class="inp" data-f="mode">
+              <option value="weighted" ${c.mode==='weighted'?'selected':''}>加權（各項權重 % 相加）</option>
+              <option value="sum" ${c.mode==='sum'?'selected':''}>累加（各項積分直接相加）</option>
+            </select></div>
+          <div class="field"><label>綜合總表權重</label><input class="inp" type="number" step="0.1" data-f="weight" value="${c.weight}"></div>
+          <div class="field"><label>同分時比較項目</label>
+            <select class="inp" data-f="tie"><option value="">不設定（同分並列）</option>
+            ${c.events.map(e=>`<option value="${e.id}" ${c.tieBreak===e.id?'selected':''}>${esc(e.name)}</option>`).join('')}</select></div>
+        </div>
+        <div class="field"><label>說明文字</label><input class="inp" data-f="note" value="${esc(c.note||'')}"></div>
+        <div id="evs_${c.id}"></div>
+        <button class="btn sm ghost" data-a="addev">＋ 新增項目</button>
+      </div></div>`);
+    p.querySelectorAll('[data-f]').forEach(inp=>{
+      const f = inp.dataset.f;
+      inp.oninput = inp.onchange = e=>{
+        const v = e.target.value;
+        if(f==='tie') c.tieBreak = v || null;
+        else if(f==='weight') c.weight = Number(v)||0;
+        else c[f] = v;
+        markDirty();
+        if(f==='mode'||f==='name'||f==='short') render();
+      };
+    });
+    p.querySelector('[data-a=up]').onclick = ()=>{ if(ci<1) return; const a=S.data.competitions; [a[ci],a[ci-1]]=[a[ci-1],a[ci]]; markDirty(); render(); };
+    p.querySelector('[data-a=down]').onclick = ()=>{ const a=S.data.competitions; if(ci>=a.length-1) return; [a[ci],a[ci+1]]=[a[ci+1],a[ci]]; markDirty(); render(); };
+    p.querySelector('[data-a=del]').onclick = ()=>{ if(!confirm(`刪除競賽「${c.name}」及其所有成績？`)) return;
+      S.data.competitions = S.data.competitions.filter(x=>x.id!==c.id); markDirty(); S.tab='setup'; render(); };
+    p.querySelector('[data-a=addev]').onclick = ()=>{
+      c.events.push({ id:uid('e'), name:'新項目', weight:c.mode==='sum'?100:0, scores:[100,85,70], tail:0, entries:{} });
+      markDirty(); render();
+    };
+
+    const evHost = p.querySelector('#evs_'+c.id);
+    c.events.forEach((ev,ei)=>{
+      const box = el(`<div class="evt"><div class="evt-hd">
+          <h3>${esc(ev.name)}</h3>
+          <div class="tools"><button class="btn sm" data-a="up">▲</button><button class="btn sm" data-a="down">▼</button>
+            <button class="btn sm danger" data-a="del">刪除</button></div></div>
+        <div class="panel-bd"><div class="cols">
+          <div class="field"><label>項目名稱</label><input class="inp" data-f="name" value="${esc(ev.name)}"></div>
+          <div class="field"><label>權重（%）</label><input class="inp" type="number" data-f="weight" value="${ev.weight}" ${c.mode==='sum'?'disabled':''}>
+            <div class="note">${c.mode==='sum'?'累加模式不使用權重':'同競賽各項權重建議合計 100'}</div></div>
+          <div class="field"><label>名次積分表</label><input class="inp" data-f="scores" value="${(ev.scores||[]).join(', ')}">
+            <div class="note">依序為第 1、2、3… 名，用逗號分隔</div></div>
+          <div class="field"><label>其餘名次積分</label><input class="inp" type="number" data-f="tail" value="${ev.tail}">
+            <div class="note">超出積分表的名次一律給這個分數</div></div>
+        </div></div></div>`);
+      box.querySelectorAll('[data-f]').forEach(inp=>{
+        const f = inp.dataset.f;
+        inp.onchange = e=>{
+          const v = e.target.value;
+          if(f==='scores') ev.scores = v.split(/[,，\s]+/).filter(Boolean).map(Number).filter(x=>!isNaN(x));
+          else if(f==='weight'||f==='tail') ev[f] = Number(v)||0;
+          else ev[f] = v;
+          markDirty(); render();
+        };
+      });
+      box.querySelector('[data-a=up]').onclick = ()=>{ if(ei<1) return; const a=c.events;[a[ei],a[ei-1]]=[a[ei-1],a[ei]]; markDirty(); render(); };
+      box.querySelector('[data-a=down]').onclick = ()=>{ const a=c.events; if(ei>=a.length-1) return; [a[ei],a[ei+1]]=[a[ei+1],a[ei]]; markDirty(); render(); };
+      box.querySelector('[data-a=del]').onclick = ()=>{ if(!confirm(`刪除項目「${ev.name}」？`)) return; c.events=c.events.filter(x=>x.id!==ev.id); markDirty(); render(); };
+      evHost.appendChild(box);
+    });
+
+    if(c.mode==='weighted'){
+      const sum = c.events.reduce((a,e)=>a+(Number(e.weight)||0),0);
+      if(Math.round(sum)!==100) p.querySelector('.panel-bd').appendChild(el(`<div class="rules" style="color:#c92f18">目前權重合計為 ${sum}%，不是 100%。積分仍會照設定計算，確認這是你要的。</div>`));
+    }
+    frag.appendChild(p);
+  });
+
+  const add = el(`<div class="panel"><div class="panel-bd" style="text-align:center">
+    <button class="btn primary" id="addC">新增一個競賽（例如趣味競賽）</button></div></div>`);
+  add.querySelector('#addC').onclick = ()=>{
+    const name = prompt('競賽名稱','趣味競賽'); if(!name) return;
+    const copy = confirm('要沿用「總名冊」裡全部隊伍當作參賽名單嗎？\n\n確定 = 全員先加入（之後可移除）\n取消 = 建立空名冊，自行挑選');
+    S.data.competitions.push({ id:uid('c'), name, short:name, weight:1, mode:'sum', note:'', tieBreak:null,
+      roster: copy ? S.data.teams.map(t=>({teamId:t.id,captain:'',contact:'',note:''})) : [],
+      events:[{ id:uid('e'), name:name+'一', weight:100, scores:[100,85,70], tail:0, entries:{} }] });
+    markDirty(); render();
+  };
+  frag.appendChild(add);
+  return frag;
+}
+
+/* ---------- 連線與備份 ---------- */
+function viewCloud(){
+  const c = Store.cfg();
+  const frag = document.createElement('div');
+  frag.appendChild(el(`<details class="help"><summary>第一次設定？三分鐘完成雲端同步</summary><div class="in">
+    <ol>
+      <li>到 <a href="https://gist.github.com" target="_blank" rel="noopener">gist.github.com</a> 建立一個 Gist，檔名填 <code>scoreboard.json</code>，內容先填 <code>{}</code>，按 Create <b>secret</b> gist。</li>
+      <li>複製網址最後那串英數字，就是 <b>Gist ID</b>，貼到下方欄位。</li>
+      <li>到 GitHub → Settings → Developer settings → Tokens (classic) 建一個只勾 <code>gist</code> 權限的權杖，貼到下方。<b>只有需要改分數的工作人員才要填</b>，觀眾留空即可唯讀。</li>
+      <li>按「測試並載入」。之後把這個 <code>index.html</code> 推到 GitHub 儲存庫，Settings → Pages 開啟，就有公開網址了。</li>
+    </ol>
+    <p>權杖只存在你這台裝置的瀏覽器裡，不會寫進網頁原始碼，也不會上傳到 Gist。</p>
+  </div></details>`));
+
+  const p = el(`<div class="panel"><div class="panel-hd"><h2>雲端連線</h2>
+      <span class="why">${Store.mode==='local'?'目前為本機模式，資料只存在這台裝置':'GitHub Gist'}</span></div>
+    <div class="panel-bd">
+      <div class="cols">
+        <div class="field"><label>Gist ID</label><input class="inp" id="c_gist" value="${esc(c.gistId||'')}" placeholder="留空 = 本機模式">
+          <div class="note">同一場活動的所有人填同一組 ID</div></div>
+        <div class="field"><label>存取權杖（只有計分人員需要）</label><input class="inp" id="c_tok" type="password" value="${esc(c.token||'')}" placeholder="ghp_… 留空為唯讀">
+        </div>
+        <div class="field"><label>你的名字</label><input class="inp" id="c_who" value="${esc(c.who||'')}" placeholder="顯示在「最後更新」旁">
+        </div>
+        <div class="field"><label>自動檢查間隔（秒）</label><input class="inp" type="number" id="c_poll" value="${c.poll||(c.token?10:45)}" min="5">
+          <div class="note">有人保存後，其他人會在這個時間內收到更新提示</div></div>
+      </div>
+      <label class="chk" style="margin-bottom:12px"><input type="checkbox" id="c_auto" ${c.autoSave?'checked':''}> 自動保存（改動後 1.5 秒自動上傳，現場登記名次建議開啟）</label>
+      <div class="tools" style="margin-left:0">
+        <button class="btn primary" id="c_save">儲存設定並連線</button>
+        <button class="btn" id="c_init">用目前資料建立雲端初始版本</button>
+      </div>
+    </div></div>`);
+  p.querySelector('#c_save').onclick = ()=>{
+    Store.saveCfg({
+      gistId: p.querySelector('#c_gist').value.trim(),
+      token: p.querySelector('#c_tok').value.trim(),
+      who: p.querySelector('#c_who').value.trim(),
+      poll: Number(p.querySelector('#c_poll').value)||10,
+      autoSave: p.querySelector('#c_auto').checked,
+    });
+    S.etag=null; S.baseRev=0; startPolling(); pull(true); render();
+  };
+  p.querySelector('#c_init').onclick = async ()=>{
+    if(!confirm('會把目前畫面上的資料寫到雲端，覆蓋雲端現有內容。確定嗎？')) return;
+    S.baseRev = 0; await push(false, true);
+  };
+  frag.appendChild(p);
+
+  const b = el(`<div class="panel"><div class="panel-hd"><h2>備份與還原</h2>
+      <span class="why">活動前後各匯出一次，最保險</span></div>
+    <div class="panel-bd"><div class="tools" style="margin-left:0">
+      <button class="btn" id="b_exp">匯出 JSON</button>
+      <button class="btn" id="b_csv">匯出總表 CSV</button>
+      <button class="btn" id="b_imp">匯入 JSON</button>
+      <button class="btn danger" id="b_reset">重設為範例資料</button>
+      <input type="file" id="b_file" accept=".json,application/json" hidden>
+    </div></div></div>`);
+  b.querySelector('#b_exp').onclick = ()=> download('scoreboard-'+Date.now()+'.json', JSON.stringify(S.data,null,2), 'application/json');
+  b.querySelector('#b_csv').onclick = ()=> download('scoreboard.csv', toCSV(), 'text/csv;charset=utf-8');
+  b.querySelector('#b_imp').onclick = ()=> b.querySelector('#b_file').click();
+  b.querySelector('#b_file').onchange = async e=>{
+    const f = e.target.files[0]; if(!f) return;
+    try{ const d = normalize(JSON.parse(await f.text())); S.data = d; markDirty(); render(); toast('已匯入，記得按「保存」上傳','good'); }
+    catch(err){ toast('檔案不是有效的 JSON','bad'); }
+  };
+  b.querySelector('#b_reset').onclick = ()=>{ if(!confirm('會清掉目前所有成績，確定？')) return; S.data = normalize(defaultData()); markDirty(); render(); };
+  frag.appendChild(b);
+  return frag;
+}
+function download(name, text, mime){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff'+text], {type:mime}));
+  a.download = name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+function toCSV(){
+  const lines = [];
+  const q = s => '"' + String(s??'').replace(/"/g,'""') + '"';
+  S.data.competitions.forEach(c=>{
+    const teams = boardTeams(c), n = compSize(c);
+    lines.push(q(c.name));
+    if(!teams.length){ lines.push(q('（無參賽隊伍）')); lines.push(''); return; }
+    lines.push(['項目／隊伍', ...teams.map(t=>t.name)].map(q).join(','));
+    lines.push(['本場隊長', ...teams.map(t=>contactChain(c,null,t.id,'captain'))].map(q).join(','));
+    lines.push(['聯繫方式', ...teams.map(t=>contactChain(c,null,t.id,'contact'))].map(q).join(','));
+    c.events.forEach(ev=>{
+      lines.push([ev.name+' 名次', ...teams.map(t=>effRank(ev,t.id,n) ?? '')].map(q).join(','));
+      lines.push([ev.name+' 積分', ...teams.map(t=>eventScore(ev,t.id,n) ?? '')].map(q).join(','));
+    });
+    const pl = compRanking(c);
+    lines.push(['總積分', ...teams.map(t=>compTotal(c,t.id) ?? '')].map(q).join(','));
+    lines.push(['名次', ...teams.map(t=>pl[t.id] ?? '')].map(q).join(','));
+    lines.push('');
+  });
+  if(S.data.showOverall && S.data.competitions.length>1){
+    const teams = overallOrdered(), pl = overallRanking();
+    lines.push(q('綜合總冠軍'));
+    lines.push(['項目／隊伍', ...teams.map(t=>t.name)].map(q).join(','));
+    S.data.competitions.forEach(c=> lines.push([c.short||c.name, ...teams.map(t=>compTotal(c,t.id) ?? '')].map(q).join(',')));
+    lines.push(['綜合積分', ...teams.map(t=>overallTotal(t.id) ?? '')].map(q).join(','));
+    lines.push(['綜合名次', ...teams.map(t=>pl[t.id] ?? '')].map(q).join(','));
+  }
+  return lines.join('\n');
+}
+
+/* ---------- 啟動 ---------- */
+$('#btnPull').onclick = ()=> pull(true);
+$('#btnPush').onclick = ()=> push(false);
+window.addEventListener('beforeunload', e=>{ if(S.dirty){ e.preventDefault(); e.returnValue=''; } });
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) pull(false); });
+
+(async function init(){
+  const cached = localStorage.getItem(LS.cache);
+  S.data = normalize(cached ? JSON.parse(cached) : defaultData());
+  S.baseRev = S.data.rev;
+  render();
+  if(Store.mode==='gist'){ await pull(false); startPolling(); }
+  else { S.tab = 'board'; render(); }
+  paintSync();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,278 @@
+{
+  "schema": 1,
+  "rev": 1,
+  "updatedAt": "2026-09-16T08:49:16.477Z",
+  "updatedBy": "初始建立",
+  "title": "瑞昱39 家庭日 · 競賽計分總表",
+  "subtitle": "歡樂無限 · 團隊攜手向前衝",
+  "showOverall": true,
+  "teams": [
+    {
+      "id": "t_rekai47gd",
+      "name": "RTK_Fatout",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "id": "t_oey76j7gd",
+      "name": "Display_Bon",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "id": "t_4q2gnl7gd",
+      "name": "狂賀!順子晉升軟體總監",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "id": "t_gglo7u7gd",
+      "name": "整個跑起來不太隊",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "id": "t_wrxxax7gd",
+      "name": "來都來了",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "id": "t_adn7qf7gd",
+      "name": "大展鴻圖",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "id": "t_6e3rgl7gd",
+      "name": "SMC_性價比突破天際",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    },
+    {
+      "id": "t_lfb8uh7gd",
+      "name": "肌肉胖子",
+      "captain": "",
+      "contact": "",
+      "note": ""
+    }
+  ],
+  "competitions": [
+    {
+      "id": "c_ivwvos7gd",
+      "name": "瑞昱最強鐵人三項爭霸賽",
+      "short": "鐵人三項",
+      "weight": 1,
+      "mode": "weighted",
+      "note": "三項競賽依名次給予權重積分，加總後為隊伍分數，分數最高者為冠軍。",
+      "roster": [
+        {
+          "teamId": "t_rekai47gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_oey76j7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_4q2gnl7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_gglo7u7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_wrxxax7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_adn7qf7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_6e3rgl7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_lfb8uh7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        }
+      ],
+      "events": [
+        {
+          "id": "e_rgk1697gd",
+          "name": "極限衝鋒",
+          "weight": 30,
+          "scores": [
+            100,
+            85,
+            70,
+            60,
+            55,
+            50,
+            40,
+            35
+          ],
+          "tail": 35,
+          "entries": {}
+        },
+        {
+          "id": "e_xbkte17gd",
+          "name": "力拔山河",
+          "weight": 30,
+          "scores": [
+            100,
+            85,
+            70,
+            60,
+            55,
+            55,
+            55,
+            55
+          ],
+          "tail": 55,
+          "entries": {}
+        },
+        {
+          "id": "e_3jiifm7gd",
+          "name": "1200公尺大隊接力",
+          "weight": 40,
+          "scores": [
+            100,
+            85,
+            70,
+            60,
+            55,
+            50,
+            40,
+            35
+          ],
+          "tail": 35,
+          "entries": {}
+        }
+      ],
+      "tieBreak": "e_3jiifm7gd"
+    },
+    {
+      "id": "c_vnojir7gd",
+      "name": "趣味競賽",
+      "short": "趣味競賽",
+      "weight": 1,
+      "mode": "sum",
+      "note": "每項取前三名給分，三項累加為趣味競賽總分。",
+      "roster": [
+        {
+          "teamId": "t_rekai47gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_oey76j7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_4q2gnl7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_gglo7u7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_wrxxax7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_adn7qf7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_6e3rgl7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        },
+        {
+          "teamId": "t_lfb8uh7gd",
+          "captain": "",
+          "contact": "",
+          "note": ""
+        }
+      ],
+      "events": [
+        {
+          "id": "e_x634n97gd",
+          "name": "趣味競賽一",
+          "weight": 100,
+          "scores": [
+            100,
+            85,
+            70
+          ],
+          "tail": 0,
+          "entries": {}
+        },
+        {
+          "id": "e_heia2l7gd",
+          "name": "趣味競賽二",
+          "weight": 100,
+          "scores": [
+            100,
+            85,
+            70
+          ],
+          "tail": 0,
+          "entries": {}
+        },
+        {
+          "id": "e_h8nrf37gd",
+          "name": "趣味競賽三",
+          "weight": 100,
+          "scores": [
+            100,
+            85,
+            70
+          ],
+          "tail": 0,
+          "entries": {}
+        }
+      ],
+      "tieBreak": null
+    }
+  ]
+}
