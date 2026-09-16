@@ -221,6 +221,18 @@ body.big table.board th.rowhd{font-size:16px}
    儲存後端：GitHub Gist（可換成任何 JSON 服務，見 Store 區塊）
    ============================================================ */
 
+/* ============================================================
+   ★ 部署前只要改這一行 ★
+   把你的 Gist ID 填進去，之後任何人打開網址就自動連上、自動同步，
+   不用再一台一台設定。Gist ID 不是密碼，可以安全寫在這裡。
+   （權杖 token 千萬不要寫在這裡 —— 見 README 說明）
+   ============================================================ */
+const DEFAULT_CFG = {
+  gistId: 'e4e1649856a2c1bdc6ba05b864adcc53',     // 例：'a1b2c3d4e5f60718293a4b5c6d7e8f90'
+  poll: 10,       // 背景檢查間隔（秒）
+  autoLoad: true, // 沒有未保存變更時，自動套用別人的更新
+};
+
 const LS = {
   cfg:'fd_cfg_v1',      // 連線設定（gistId / token / 名字），只存在本機
   cache:'fd_cache_v1',  // 離線快取 + 本機模式資料
@@ -299,10 +311,18 @@ function normalize(d){
    目前實作 GitHub Gist。要換別的後端，只要改這三個方法即可。
    ============================================================ */
 const Store = {
-  cfg(){ try{ return JSON.parse(localStorage.getItem(LS.cfg)) || {}; }catch{ return {}; } },
+  /** 優先序：內建預設 → 這台裝置的設定 → 網址參數 ?gist=xxx */
+  cfg(){
+    let u = {}; try{ u = JSON.parse(localStorage.getItem(LS.cfg)) || {}; }catch{}
+    const c = Object.assign({}, DEFAULT_CFG, u);
+    const q = new URLSearchParams(location.search);
+    if(q.get('gist')){ c.gistId = q.get('gist').trim(); c.noCloud = false; }
+    if(c.autoLoad === undefined) c.autoLoad = true;
+    return c;
+  },
   saveCfg(c){ localStorage.setItem(LS.cfg, JSON.stringify(c)); },
-  get mode(){ const c=this.cfg(); return c.gistId ? 'gist' : 'local'; },
-  get canWrite(){ const c=this.cfg(); return this.mode==='local' || !!c.token; },
+  get mode(){ const c=this.cfg(); return (!c.noCloud && c.gistId) ? 'gist' : 'local'; },
+  get canWrite(){ return this.mode==='local' || !!this.cfg().token; },
 
   async read(etag){
     const c = this.cfg();
@@ -564,8 +584,12 @@ function startPolling(){
       S.etag = r.etag;
       if(remote.rev === S.data?.rev && !S.dirty) return;
       if(remote.rev === S.baseRev) return;
-      if(S.dirty){ S.remote = remote; renderBanner(); paintSync(); }
-      else { S.remote = remote; renderBanner(); paintSync(); }   // 提醒未刷新的使用者
+      if(!S.dirty && Store.cfg().autoLoad){
+        applyRemote(remote);                                  // 沒有未保存變更 → 直接自動更新
+        toast('已自動更新：' + (remote.updatedBy||'') + ' v' + remote.rev, 'good');
+      } else {
+        S.remote = remote; renderBanner(); paintSync();       // 有變更或關閉自動載入 → 詢問使用者
+      }
     }catch(e){ /* 靜默，避免現場干擾 */ }
   }, sec*1000);
 }
@@ -1092,34 +1116,47 @@ function viewCloud(){
     <p>權杖只存在你這台裝置的瀏覽器裡，不會寫進網頁原始碼，也不會上傳到 Gist。</p>
   </div></details>`));
 
+  const builtIn = DEFAULT_CFG.gistId ? `<div class="note">這個網址已內建 Gist ID，一般使用者不用改。</div>` : `<div class="note">同一場活動的所有人填同一組 ID</div>`;
   const p = el(`<div class="panel"><div class="panel-hd"><h2>雲端連線</h2>
-      <span class="why">${Store.mode==='local'?'目前為本機模式，資料只存在這台裝置':'GitHub Gist'}</span></div>
+      <span class="why">${Store.mode==='local'?'目前為本機模式，資料只存在這台裝置':'GitHub Gist · '+(c.token?'可編輯':'唯讀')}</span></div>
     <div class="panel-bd">
       <div class="cols">
-        <div class="field"><label>Gist ID</label><input class="inp" id="c_gist" value="${esc(c.gistId||'')}" placeholder="留空 = 本機模式">
-          <div class="note">同一場活動的所有人填同一組 ID</div></div>
+        <div class="field"><label>Gist ID</label><input class="inp" id="c_gist" value="${esc(c.noCloud?'':(c.gistId||''))}" placeholder="留空 = 本機模式">
+          ${builtIn}</div>
         <div class="field"><label>存取權杖（只有計分人員需要）</label><input class="inp" id="c_tok" type="password" value="${esc(c.token||'')}" placeholder="ghp_… 留空為唯讀">
         </div>
         <div class="field"><label>你的名字</label><input class="inp" id="c_who" value="${esc(c.who||'')}" placeholder="顯示在「最後更新」旁">
         </div>
-        <div class="field"><label>自動檢查間隔（秒）</label><input class="inp" type="number" id="c_poll" value="${c.poll||(c.token?10:45)}" min="5">
-          <div class="note">有人保存後，其他人會在這個時間內收到更新提示</div></div>
+        <div class="field"><label>自動檢查間隔（秒）</label><input class="inp" type="number" id="c_poll" value="${c.poll||10}" min="5">
+          <div class="note">別人保存後，這個時間內就會同步過來</div></div>
       </div>
-      <label class="chk" style="margin-bottom:12px"><input type="checkbox" id="c_auto" ${c.autoSave?'checked':''}> 自動保存（改動後 1.5 秒自動上傳，現場登記名次建議開啟）</label>
+      <label class="chk" style="display:flex;margin-bottom:8px"><input type="checkbox" id="c_load" ${c.autoLoad?'checked':''}> 自動載入最新資料（沒有未保存變更時直接更新，不用按任何按鈕）</label>
+      <label class="chk" style="display:flex;margin-bottom:14px"><input type="checkbox" id="c_auto" ${c.autoSave?'checked':''}> 自動保存（改動後 1.5 秒自動上傳，現場登記名次建議開啟）</label>
       <div class="tools" style="margin-left:0">
         <button class="btn primary" id="c_save">儲存設定並連線</button>
+        <button class="btn" id="c_link">複製分享連結</button>
         <button class="btn" id="c_init">用目前資料建立雲端初始版本</button>
       </div>
     </div></div>`);
   p.querySelector('#c_save').onclick = ()=>{
+    const gid = p.querySelector('#c_gist').value.trim();
     Store.saveCfg({
-      gistId: p.querySelector('#c_gist').value.trim(),
+      gistId: gid,
+      noCloud: !gid,
       token: p.querySelector('#c_tok').value.trim(),
       who: p.querySelector('#c_who').value.trim(),
       poll: Number(p.querySelector('#c_poll').value)||10,
       autoSave: p.querySelector('#c_auto').checked,
+      autoLoad: p.querySelector('#c_load').checked,
     });
     S.etag=null; S.baseRev=0; startPolling(); pull(true); render();
+  };
+  p.querySelector('#c_link').onclick = async ()=>{
+    const cur = Store.cfg();
+    if(!cur.gistId){ toast('還沒有 Gist ID','bad'); return; }
+    const url = location.origin + location.pathname + '?gist=' + cur.gistId;
+    try{ await navigator.clipboard.writeText(url); toast('連結已複製，貼給同仁即可','good'); }
+    catch{ prompt('複製這個連結分享給同仁：', url); }
   };
   p.querySelector('#c_init').onclick = async ()=>{
     if(!confirm('會把目前畫面上的資料寫到雲端，覆蓋雲端現有內容。確定嗎？')) return;
