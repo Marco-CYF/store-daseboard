@@ -163,6 +163,23 @@ details.help ol{padding-left:20px;margin:6px 0}
 details.help li{margin-bottom:5px}
 code{background:#eef1f5;padding:1px 5px;border-radius:4px;font-size:12.5px}
 
+/* 獎次徽章（金銀銅） */
+.mdl{display:inline-flex;align-items:center;gap:6px;font-weight:900;font-size:23px;white-space:nowrap;line-height:1.25}
+.mdl .em{font-size:1.05em}
+.mdl.g{color:#c8910b}
+.mdl.s{color:#78848f}
+.mdl.b{color:#a2682d}
+.mdl.rec{color:#c8910b;font-size:19px}
+.mdl.none{color:var(--ink-3);font-size:15px;font-weight:700}
+.mdl.sm{font-size:17px}
+.mdl.sm.rec,.mdl.sm.none{font-size:14px}
+td.mcell{text-align:center;vertical-align:middle}
+tr.aw1{background:#fffaf0}
+tr.aw2{background:#f7f9fb}
+tr.aw3{background:#fdf7f1}
+body.big .mdl{font-size:34px}
+body.big .mdl.rec{font-size:27px}
+
 /* 歷年紀錄比較 */
 .recbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 16px;background:#f2f7ff;border-bottom:1px solid #cfe0f7;font-size:13px}
 .recbar b{font-weight:900}
@@ -1540,6 +1557,23 @@ function awardSourceText(a){
   return (c.short || c.name) + ' 總名次';
 }
 
+/** 獎次徽章：冠亞季軍用金銀銅，破紀錄用獎盃 */
+function medalBadge(a, small){
+  const sm = small ? ' sm' : '';
+  if(a.source === 'record') return `<span class="mdl rec${sm}"><span class="em">🏆</span>破紀錄</span>`;
+  if(a.source === 'manual') return `<span class="mdl none${sm}">特別獎</span>`;
+  const p = Number(a.place);
+  if(p === 1) return `<span class="mdl g${sm}"><span class="em">🥇</span>冠軍</span>`;
+  if(p === 2) return `<span class="mdl s${sm}"><span class="em">🥈</span>亞軍</span>`;
+  if(p === 3) return `<span class="mdl b${sm}"><span class="em">🥉</span>季軍</span>`;
+  return `<span class="mdl none${sm}">第 ${p} 名</span>`;
+}
+function awardRowClass(a){
+  if(a.source === 'record') return 'aw1';
+  if(a.source === 'manual') return '';
+  return ({1:'aw1',2:'aw2',3:'aw3'})[Number(a.place)] || '';
+}
+
 function viewAwards(){
   const frag = document.createElement('div');
   const rows = S.data.awards;
@@ -1614,6 +1648,7 @@ function viewAwards(){
 function awardsView(rows){
   const p = el(`<div class="panel"><div class="scroller"><table class="board">
     <thead><tr><th class="rowhd" style="min-width:230px">獎項別／梯次別</th>
+      <th style="width:130px">獎次</th>
       <th style="min-width:170px">得獎隊伍</th><th style="min-width:200px">隊長／聯繫方式</th>
       <th style="min-width:130px">頒獎長官</th></tr></thead>
     <tbody></tbody></table></div></div>`);
@@ -1632,7 +1667,7 @@ function awardsView(rows){
     g.items.forEach((a, i)=>{
       const r = awardResult(a);
       const tr = document.createElement('tr');
-      tr.className = 'r-score';
+      tr.className = 'r-score ' + awardRowClass(a);
       const names = r.teams.map(t=>esc(t.name)).join('、');
       let cell;
       if(r.tie) cell = `<span style="color:#c92f18;font-weight:900">${names}</span><span class="w" style="color:#c92f18">${a.source==='record'?'多隊同時破紀錄，待決定':'同分並列，待決定'}</span>`;
@@ -1640,7 +1675,8 @@ function awardsView(rows){
       else cell = `<span style="font-weight:900">${names}</span>`;
       tr.innerHTML = `
         <th class="rowhd" style="text-align:left">${esc(a.title)}
-          <span class="w">${esc(awardSourceText(a))}${a.source==='record'?'':' · '+placeLabel(a.place)}${a.note?' · '+esc(a.note):''}</span></th>
+          <span class="w">${esc(awardSourceText(a))}${a.note?' · '+esc(a.note):''}</span></th>
+        <td class="mcell">${medalBadge(a)}</td>
         <td style="text-align:left">${cell}</td>
         <td style="text-align:left;font-size:14px;font-weight:400">${contactCell(a, r.teams)}</td>
         ${ i===0 ? `<td rowspan="${g.items.length}" style="vertical-align:middle;font-weight:700">${esc(g.key||'—')}</td>` : '' }`;
@@ -1655,7 +1691,7 @@ function awardsView(rows){
 function awardsEdit(rows){
   const p = el(`<div class="panel"><div class="scroller"><table class="grid">
     <thead><tr><th style="width:86px">順序</th><th style="min-width:210px">獎項名稱</th>
-      <th style="min-width:200px">來源</th><th style="width:110px">名次</th>
+      <th style="min-width:200px">來源</th><th style="width:110px">名次</th><th style="width:110px">獎次</th>
       <th style="min-width:150px">得獎隊伍</th><th style="min-width:190px">隊長／聯繫方式</th><th style="min-width:130px">頒獎長官</th>
       <th style="min-width:110px">備註</th><th style="width:60px"></th></tr></thead>
     <tbody></tbody></table></div></div>`);
@@ -1664,6 +1700,7 @@ function awardsEdit(rows){
   rows.forEach((a, i)=>{
     const r = awardResult(a);
     const tr = document.createElement('tr');
+    tr.className = awardRowClass(a);
     if(r.tie) tr.style.background = '#fff5f3';
 
     let srcOpts = '';
@@ -1698,6 +1735,7 @@ function awardsEdit(rows){
       <td><input class="inp" data-f="title" value="${esc(a.title)}" placeholder="例：瑞昱趣味競賽_就是灌籃高手"></td>
       <td><select class="inp" data-f="src">${srcOpts}</select></td>
       <td><select class="inp" data-f="place" ${a.source==='manual'?'disabled':''}>${plOpts}</select></td>
+      <td class="mcell">${medalBadge(a, true)}</td>
       <td>${winner}</td>
       <td style="font-size:13px">${contactCell(a, a.source==='manual' ? (teamById(a.teamId)?[teamById(a.teamId)]:[]) : r.teams)}</td>
       <td><input class="inp" data-f="presenter" value="${esc(a.presenter||'')}" placeholder="頒獎長官"></td>
