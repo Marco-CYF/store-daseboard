@@ -304,6 +304,49 @@ body.big table.board th.rowhd{font-size:16px}
   .panel{box-shadow:none;border-color:#999;page-break-inside:avoid}
   table.board{min-width:0}
 }
+/* ---------- 手機版：排行榜卡片 ---------- */
+.rcards{padding:12px 12px 4px;display:flex;flex-direction:column;gap:10px}
+.rcard{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--card)}
+.rcard.p1{border-color:#eccb84;background:#fffdf6}
+.rcard.p2{border-color:#cfd6de;background:#fbfcfd}
+.rcard.p3{border-color:#e3c8ab;background:#fffbf7}
+.rcard .pos{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:52px;flex:none}
+.rcard .pos .n{font-size:26px;font-weight:900;line-height:1}
+.rcard .pos .em{font-size:18px;line-height:1.2}
+.rcard.p1 .pos .n{color:#c8910b}
+.rcard.p2 .pos .n{color:#78848f}
+.rcard.p3 .pos .n{color:#a2682d}
+.rcard .mid{flex:1;min-width:0}
+.rcard .nm{font-size:16px;font-weight:900;line-height:1.3;word-break:break-word}
+.rcard .sub{font-size:12px;color:var(--ink-3);margin-top:3px;line-height:1.5}
+.rcard .tot{font-size:26px;font-weight:900;flex:none;text-align:right;min-width:62px}
+.rcard .tot small{display:block;font-size:11px;font-weight:700;color:var(--ink-3)}
+.rcard.none{opacity:.6}
+
+@media (max-width:760px){
+  /* 表單類表格改成一列一張卡，不用左右拖 */
+  .scroller{overflow-x:visible}
+  table.grid{min-width:0}
+  table.grid thead{display:none}
+  table.grid,table.grid tbody,table.grid tr,table.grid td{display:block;width:100%}
+  table.grid tr{border:1px solid var(--line);border-radius:12px;margin:0 0 10px;padding:6px 4px;background:var(--card)}
+  table.grid tr:last-child{margin-bottom:0}
+  table.grid td{border:0;padding:6px 10px;display:flex;align-items:center;gap:10px;min-height:42px}
+  table.grid td::before{content:attr(data-l);flex:none;width:80px;font-size:12px;font-weight:700;color:var(--ink-3)}
+  table.grid td[data-l=""]::before,table.grid td:not([data-l])::before{display:none}
+  table.grid td .inp{flex:1}
+  .panel-bd,.panel-hd{padding-left:12px;padding-right:12px}
+  .tools{width:100%;margin-left:0}
+  .tools .btn{flex:1}
+  .btn{padding:10px 14px}
+  .btn.sm{padding:8px 12px}
+  select.rank{width:100%;height:44px;font-size:17px}
+  .qchip{padding:10px 14px;font-size:15px}
+  .dragh{padding:8px 10px;font-size:17px}
+  .ochip{padding:5px 6px 5px 12px}
+  .cols{grid-template-columns:1fr}
+}
+
 @media (max-width:640px){
   .top-in{padding:8px 12px;gap:8px}
   .brand h1{font-size:16px}
@@ -358,7 +401,7 @@ body.big table.board th.rowhd{font-size:16px}
    ============================================================ */
 const DEFAULT_CFG = {
   gistId: 'e4e1649856a2c1bdc6ba05b864adcc53',     // 例：'a1b2c3d4e5f60718293a4b5c6d7e8f90'
-  poll: 10,       // 背景檢查間隔（秒）
+  poll: 15,       // 背景檢查間隔（秒）
   autoLoad: true, // 沒有未保存變更時，自動套用別人的更新
 };
 
@@ -554,7 +597,7 @@ function adoptUrlParams(){
   if(q.get('t')) cur.token = q.get('t').trim();
   cur.viewOnly = q.get('ro') === '1';
   if(cur.autoLoad === undefined) cur.autoLoad = true;
-  if(cur.poll === undefined) cur.poll = 10;
+  if(cur.poll === undefined) cur.poll = DEFAULT_CFG.poll;
   Store.saveCfg(cur);
   try{ history.replaceState(null, '', location.pathname); }catch{}
 }
@@ -568,6 +611,7 @@ const S = {
   dirty: false,
   tab: 'board',
   sortMode: 'custom', // custom | rank
+  boardView: 'auto',  // auto | table | cards（手機預設走卡片）
   awardMode: 'edit',  // edit | view
   remote: null,       // 偵測到的較新遠端資料
   polling: null,
@@ -1050,6 +1094,16 @@ function renderTabs(){
   const host = $('#tabs'); host.innerHTML='';
   closeMenus();
 
+  // 觀眾模式：只看得到總計分板，其他分頁不顯示
+  if(Store.cfg().viewOnly){
+    const b = document.createElement('button');
+    b.className='tab'; b.setAttribute('role','tab'); b.setAttribute('aria-selected','true');
+    b.textContent = '總計分板';
+    b.onclick = ()=> goTab('board');
+    host.appendChild(b);
+    return;
+  }
+
   const mk = (id, label, cnt)=>{
     const b = document.createElement('button');
     b.className='tab'; b.setAttribute('role','tab');
@@ -1195,10 +1249,17 @@ function goTab(id){ S.tab = id; render(); window.scrollTo({top:0}); }
 document.addEventListener('click', closeMenus);
 document.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeMenus(); });
 window.addEventListener('resize', closeMenus);
+try{
+  const mq = window.matchMedia('(max-width: 760px)');
+  const onMQ = ()=>{ if(S.data && S.tab === 'board' && S.boardView === 'auto') render(); };
+  mq.addEventListener ? mq.addEventListener('change', onMQ) : mq.addListener(onMQ);
+}catch{}
 window.addEventListener('scroll', closeMenus, true);
 
 function render(){
   if(!S.data){ return; }
+  // 觀眾模式若因任何原因停在其他分頁，一律拉回總計分板（設定頁保留給工作人員切換身分）
+  if(Store.cfg().viewOnly && S.tab !== 'board' && S.tab !== 'cloud') S.tab = 'board';
   renderHeaderBits(); renderTabs();
   const v = $('#view');
   const backup = v.innerHTML;
@@ -1239,8 +1300,11 @@ function applyReadOnly(){
   v.prepend(el(`<div class="panel" style="border-color:#d3dae4;background:#f7f9fc">
     <div class="panel-bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px">
       <b style="font-size:14px">唯讀模式</b>
-      <span style="font-size:13px;color:#4a5a70">你看到的是即時計分板，畫面會自動更新，但不能修改。要登記成績請向主辦索取「計分人員連結」。</span>
+      <span style="font-size:13px;color:#4a5a70">你看到的是即時計分板，畫面每 ${Math.max(5, Number(Store.cfg().poll)||15)} 秒自動更新一次，但不能修改。要登記成績請向主辦索取「計分人員連結」。</span>
+      <button class="btn sm no-lock" id="roStaff" style="margin-left:auto">我是工作人員</button>
     </div></div>`));
+  const staff = $('#roStaff');
+  if(staff) staff.onclick = ()=> goTab('cloud');
 }
 /** 以 <template> 解析，才能正確產生 <tr>/<td> 這類需要表格上下文的元素 */
 function el(html){
@@ -1261,15 +1325,20 @@ function viewBoard(){
 
   const ctrl = el(`<div class="panel"><div class="panel-hd">
       <h2>檢視方式</h2>
-      <span class="why">每場競賽的欄位順序各自獨立，用下方箭頭即時對齊現場板子</span>
+      <span class="why">${useCards() ? '手機版自動改用排行榜呈現，由上到下就是名次' : '每場競賽的欄位順序各自獨立，用下方箭頭即時對齊現場板子'}</span>
       <div class="tools no-print">
         <button class="btn sm no-lock" id="sortCustom">自訂順序</button>
         <button class="btn sm no-lock" id="sortRank">依名次排列</button>
+        <button class="btn sm no-lock" id="viewCards">排行榜</button>
+        <button class="btn sm no-lock" id="viewTable">完整表格</button>
         <button class="btn sm no-lock" id="bigMode">大字模式</button>
         <button class="btn sm no-lock" id="doPrint">列印</button>
       </div></div></div>`);
   ctrl.querySelector('#sortCustom').onclick = ()=>{ S.sortMode='custom'; render(); };
   ctrl.querySelector('#sortRank').onclick = ()=>{ S.sortMode='rank'; render(); };
+  ctrl.querySelector('#viewCards').onclick = ()=>{ S.boardView='cards'; render(); };
+  ctrl.querySelector('#viewTable').onclick = ()=>{ S.boardView='table'; render(); };
+  ctrl.querySelector(useCards() ? '#viewCards' : '#viewTable').classList.add('primary');
   ctrl.querySelector('#bigMode').onclick = ()=> document.body.classList.toggle('big');
   ctrl.querySelector('#doPrint').onclick = ()=> window.print();
   ctrl.querySelector(S.sortMode==='rank'?'#sortRank':'#sortCustom').classList.add('primary');
@@ -1280,6 +1349,40 @@ function viewBoard(){
   if(S.data.showOverall && S.data.competitions.length>1) frag.appendChild(overallTable());
   return frag;
 }
+function isNarrow(){ try{ return window.matchMedia('(max-width: 760px)').matches; }catch{ return false; } }
+function useCards(){ return S.boardView === 'cards' || (S.boardView === 'auto' && isNarrow()); }
+
+/** 手機版：把矩陣表改成由上到下的排行榜卡片，不用左右拖 */
+function boardCards(c){
+  const teams = rosterTeams(c);
+  const place = compRanking(c);
+  const n = compSize(c);
+  const sorted = [...teams].sort((a,b)=>{
+    const pa = compTotal(c,a.id)==null ? 999 : place[a.id];
+    const pb = compTotal(c,b.id)==null ? 999 : place[b.id];
+    return pa - pb;
+  });
+  const box = el(`<div class="rcards"></div>`);
+  sorted.forEach(t=>{
+    const tot = compTotal(c, t.id);
+    const pl = place[t.id];
+    const detail = c.events.map(ev=>{
+      const rk = effRank(ev, t.id, n), sc = eventScore(ev, t.id, n);
+      return `${esc(ev.name)} ${rk==null?'—':'第'+rk+'名'}${sc==null?'':'／'+sc+'分'}`;
+    }).join('　');
+    const cls = tot==null ? 'none' : (pl<=3 ? 'p'+pl : '');
+    box.appendChild(el(`<div class="rcard ${cls}">
+        <div class="pos">${tot==null?'<span class="n">—</span>':`<span class="em">${medal(pl)||'&nbsp;'}</span><span class="n">${pl}</span>`}</div>
+        <div class="mid">
+          <div class="nm">${esc(t.name)}</div>
+          <div class="sub">${detail}</div>
+        </div>
+        <div class="tot">${tot==null?'—':tot}<small>總積分</small></div>
+      </div>`));
+  });
+  return box;
+}
+
 function boardTable(c){
   const teams = boardTeams(c);
   const n = compSize(c);
@@ -1292,6 +1395,17 @@ function boardTable(c){
   if(!teams.length){
     p.querySelector('.scroller').replaceWith(el(`<div class="empty-state"><b>這場競賽還沒有參賽隊伍</b>到「${esc(c.short||c.name)}」分頁的「參賽隊伍」加入即可。</div>`));
     p.querySelector('.orderbar').remove();
+    return p;
+  }
+
+  if(useCards()){
+    p.querySelector('.scroller').replaceWith(boardCards(c));
+    const ob0 = p.querySelector('.orderbar');
+    if(ob0) ob0.remove();                     // 手機上不顯示欄位順序列，改用排行序
+    if(c.tieBreak){
+      const ev = c.events.find(e=>e.id===c.tieBreak);
+      p.appendChild(el(`<div class="rules">同分時，以【${esc(ev?.name||'')}】勝負為依據。</div>`));
+    }
     return p;
   }
 
@@ -1453,10 +1567,10 @@ function rosterPanel(c){
     const tr = document.createElement('tr');
     tr.dataset.sid = t.id;
     tr.innerHTML = `<td style="white-space:nowrap"><span class="dragh" title="按住拖曳排序">⠿</span><button class="btn icon sm" data-d="-1">▲</button><button class="btn icon sm" data-d="1">▼</button></td>
-      <td><input class="inp" data-g="name" value="${esc(t.name)}"></td>
-      <td><input class="inp" data-f="captain" value="${esc(r.captain||'')}" placeholder="${esc(t.captain||'姓名')}"></td>
-      <td><input class="inp" data-f="contact" value="${esc(r.contact||'')}" placeholder="${esc(t.contact||'分機 / 手機 / Line')}"></td>
-      <td><input class="inp" data-f="note" value="${esc(r.note||'')}" placeholder="人數、集合點…"></td>
+      <td data-l="組別名稱"><input class="inp" data-g="name" value="${esc(t.name)}"></td>
+      <td data-l="本場隊長"><input class="inp" data-f="captain" value="${esc(r.captain||'')}" placeholder="${esc(t.captain||'姓名')}"></td>
+      <td data-l="聯繫方式"><input class="inp" data-f="contact" value="${esc(r.contact||'')}" placeholder="${esc(t.contact||'分機 / 手機 / Line')}"></td>
+      <td data-l="備註"><input class="inp" data-f="note" value="${esc(r.note||'')}" placeholder="人數、集合點…"></td>
       <td><button class="btn sm danger" data-x="1">移除</button></td>`;
     tr.querySelectorAll('[data-d]').forEach(b=> b.onclick=()=>{
       const j=i+Number(b.dataset.d); if(j<0||j>=c.roster.length) return;
@@ -1600,19 +1714,19 @@ function eventCard(c, ev, n){
     for(let i=1;i<=Math.max(n, 12);i++)
       opts += `<option value="${i}" ${en.rank===i?'selected':''}>第 ${i} 名${i>n?'（超過隊數）':''}</option>`;
     tr.innerHTML = `
-      <td class="tname">${esc(t.name)}</td>
-      <td><div class="rankcell">
+      <td class="tname" data-l="組別">${esc(t.name)}</td>
+      <td data-l="名次"><div class="rankcell">
         ${rankMark(ev, t, au)}
         <select class="inp rank ${au.dupes.some(d=>d.rank===en.rank)?'err':(en.rank>au.n?'warn':'')}" data-f="rank" ${en.dnf?'disabled':''}>${opts}</select>
         <label class="chk"><input type="checkbox" data-f="dnf" ${en.dnf?'checked':''}> 中止</label>
       </div></td>
-      <td><span class="scorebox ${sc?'':'zero'}">${sc==null?'—':sc}</span></td>
-      ${rs.on ? `<td><input class="inp perf ${rs.best!=null && parsePerf(en.perf)===rs.best ? 'best':''} ${en.perf && isNaN(parsePerf(en.perf))?'bad':''}"
+      <td data-l="積分"><span class="scorebox ${sc?'':'zero'}">${sc==null?'—':sc}</span></td>
+      ${rs.on ? `<td data-l="本次成績"><input class="inp perf ${rs.best!=null && parsePerf(en.perf)===rs.best ? 'best':''} ${en.perf && isNaN(parsePerf(en.perf))?'bad':''}"
             data-f="perf" value="${esc(en.perf||'')}" placeholder="${ev.record.better==='max'?'例 128':"0'41\"79"}">
           ${ rs.broke.some(x=>x.id===t.id) ? '<span class="brk">🏆 破紀錄</span>' : '' }</td>` : ''}
-      <td><input class="inp" data-f="captain" value="${esc(en.captain||'')}" placeholder="${esc(ri.captain||t.captain||'同本場隊長')}"></td>
-      <td><input class="inp" data-f="contact" value="${esc(en.contact||'')}" placeholder="${esc(ri.contact||t.contact||'分機 / 手機')}"></td>
-      <td><input class="inp" data-f="note" value="${esc(en.note||'')}" placeholder="成績、備註"></td>`;
+      <td data-l="本項隊長"><input class="inp" data-f="captain" value="${esc(en.captain||'')}" placeholder="${esc(ri.captain||t.captain||'同本場隊長')}"></td>
+      <td data-l="聯繫方式"><input class="inp" data-f="contact" value="${esc(en.contact||'')}" placeholder="${esc(ri.contact||t.contact||'分機 / 手機')}"></td>
+      <td data-l="備註"><input class="inp" data-f="note" value="${esc(en.note||'')}" placeholder="成績、備註"></td>`;
     tr.querySelector('[data-f=rank]').onchange = e=>{ en.rank = e.target.value ? Number(e.target.value) : null; markDirty(); render(); };
     tr.querySelector('[data-f=dnf]').onchange = e=>{ en.dnf = e.target.checked; markDirty(); render(); };
     ['captain','contact','note'].forEach(f=>{
@@ -1896,14 +2010,14 @@ function awardsEdit(rows){
     tr.dataset.sid = a.id;
     tr.innerHTML = `
       <td style="white-space:nowrap"><span class="dragh" title="按住拖曳排序">⠿</span><button class="btn icon sm" data-d="-1">▲</button><button class="btn icon sm" data-d="1">▼</button></td>
-      <td><input class="inp" data-f="title" value="${esc(a.title)}" placeholder="例：瑞昱趣味競賽_就是灌籃高手"></td>
-      <td><select class="inp" data-f="src">${srcOpts}</select></td>
-      <td><select class="inp" data-f="place" ${a.source==='manual'?'disabled':''}>${plOpts}</select></td>
-      <td class="mcell">${medalBadge(a, true)}</td>
-      <td>${winner}</td>
+      <td data-l="獎項名稱"><input class="inp" data-f="title" value="${esc(a.title)}" placeholder="例：瑞昱趣味競賽_就是灌籃高手"></td>
+      <td data-l="來源"><select class="inp" data-f="src">${srcOpts}</select></td>
+      <td data-l="名次"><select class="inp" data-f="place" ${a.source==='manual'?'disabled':''}>${plOpts}</select></td>
+      <td class="mcell" data-l="獎次">${medalBadge(a, true)}</td>
+      <td data-l="得獎隊伍">${winner}</td>
       <td style="font-size:13px">${contactCell(a, a.source==='manual' ? (teamById(a.teamId)?[teamById(a.teamId)]:[]) : r.teams)}</td>
-      <td><input class="inp" data-f="presenter" value="${esc(a.presenter||'')}" placeholder="頒獎長官"></td>
-      <td><input class="inp" data-f="note" value="${esc(a.note||'')}" placeholder="例：(3)"></td>
+      <td data-l="頒獎長官"><input class="inp" data-f="presenter" value="${esc(a.presenter||'')}" placeholder="頒獎長官"></td>
+      <td data-l="備註"><input class="inp" data-f="note" value="${esc(a.note||'')}" placeholder="例：(3)"></td>
       <td><button class="btn sm danger" data-x="1">刪除</button></td>`;
 
     tr.querySelectorAll('[data-d]').forEach(b=> b.onclick = ()=>{
@@ -2054,10 +2168,10 @@ function viewTeams(){
       : '<span style="color:#8494a8;font-size:12.5px">未參加任何競賽</span>';
     tr.dataset.sid = t.id;
     tr.innerHTML = `<td style="white-space:nowrap"><span class="dragh" title="按住拖曳排序">⠿</span><button class="btn icon sm" data-d="-1">▲</button><button class="btn icon sm" data-d="1">▼</button></td>
-      <td><input class="inp" data-f="name" value="${esc(t.name)}"></td>
-      <td><input class="inp" data-f="captain" value="${esc(t.captain||'')}" placeholder="姓名"></td>
-      <td><input class="inp" data-f="contact" value="${esc(t.contact||'')}" placeholder="分機 / 手機 / Line"></td>
-      <td><input class="inp" data-f="note" value="${esc(t.note||'')}" placeholder="部門、人數…"></td>
+      <td data-l="組別名稱"><input class="inp" data-f="name" value="${esc(t.name)}"></td>
+      <td data-l="預設隊長"><input class="inp" data-f="captain" value="${esc(t.captain||'')}" placeholder="姓名"></td>
+      <td data-l="聯繫方式"><input class="inp" data-f="contact" value="${esc(t.contact||'')}" placeholder="分機 / 手機 / Line"></td>
+      <td data-l="備註"><input class="inp" data-f="note" value="${esc(t.note||'')}" placeholder="部門、人數…"></td>
       <td>${badges}</td>
       <td><button class="btn sm danger" data-x="1">刪除</button></td>`;
     tr.querySelectorAll('[data-d]').forEach(b=> b.onclick=()=>{
